@@ -43,7 +43,7 @@ Dos temporadas consecutivas de emergencia agropecuaria en Mendoza (2023 y 2024) 
 - Emergencia agropecuaria declarada en 2023 Y 2024
 
 Hackathon: Vendimia Tech, Mendoza — Marzo 2025.
-Tracks: Hedera + BNB + Rootstock + Beexo Connect.
+Tracks: Stellar Hackathon + Hedera + BNB + Rootstock + Beexo Connect.
 Deadline entregables: Viernes 17hs en DoraHacks.
 
 ---
@@ -80,7 +80,9 @@ COPERNICUS_CLIENT_SECRET=[regenerar antes del hackathon]
 GEMINI_API_KEY=[obtener de Google AI Studio]
 NEXT_PUBLIC_BSC_RPC=https://data-seed-prebsc-1-s1.binance.org:8545
 NEXT_PUBLIC_RSK_RPC=https://public-node.testnet.rsk.co
-NEXT_PUBLIC_CONTRACT_ADDRESS=[después del deploy]
+NEXT_PUBLIC_CONTRACT_BSC=[address después del deploy en BSC Testnet]
+NEXT_PUBLIC_CONTRACT_RSK=[address después del deploy en RSK Testnet]
+NEXT_PUBLIC_CONTRACT_HEDERA=[address después del deploy en Hedera Testnet EVM]
 HEDERA_ACCOUNT_ID=[obtener en portal.hedera.com]
 HEDERA_PRIVATE_KEY=[obtener en portal.hedera.com]
 ```
@@ -128,7 +130,20 @@ vesta/
 
 ---
 
-## PARTE 1 — Contrato Solidity
+## PARTE 1 — Contrato Solidity ✅ COMPLETADA — NO MODIFICAR
+
+> **Esta parte ya fue implementada y testeada por el equipo. Claude Code NO debe tocar nada de esta sección.**
+> El contrato está en `contracts/VESTA.sol`, deployado y funcionando.
+> Tests pasados: mint normal, mint edición limitada, lectura de certificado, colección por owner, tokenURI base64.
+> Resultados del test:
+>
+> - Contrato deployado: `0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9` (local)
+> - TX mint normal: `0xf7166865da793373ad9b49093a9ca22db842788020b9cba171165816feb9b262`
+> - TX mint helada: `0x740b07ec1a90aaf8b625609c114de672d80a87d9cf15f3df8dd03a82088f227a`
+> - isLimitedEdition funciona correctamente
+> - tokenURI devuelve JSON base64 con 7 atributos
+
+## PARTE 1 — Contrato Solidity (REFERENCIA — ya implementado)
 
 **Archivo:** `contracts/VESTA.sol`
 
@@ -174,11 +189,351 @@ function isLimitedEdition(uint256 tokenId) public view returns (bool)
 
 **Checklist Parte 1:**
 
-- [ ] VESTA.sol escrito y compilando sin errores
-- [ ] Deploy exitoso en BSC Testnet con address guardado
-- [ ] Deploy exitoso en RSK Testnet con address guardado
-- [ ] Al menos 2 transacciones de test en BSC (requerido BNB track)
-- [ ] ABI exportado a `lib/abi.json`
+- [x] VESTA.sol escrito y compilando sin errores
+- [x] Tests locales pasados (mint, edición limitada, colección, tokenURI)
+- [x] ABI exportado a `lib/abi.json`
+- [ ] ~~Deploy directo en BSC/RSK/Hedera~~ → **Reemplazado por Parte 1b con LayerZero**
+
+> ℹ️ Los deploys en BSC Testnet, RSK Testnet y Hedera están en la **Parte 1b**.
+> El contrato base VESTA.sol evoluciona a VESTAHub.sol y VESTASpoke.sol con LayerZero.
+> Las 2 txs obligatorias para el track BNB se hacen en la Parte 1b al testear el HUB.
+> **Un solo VESTA.sol, tres deployments — solo cambia la red en el script:**
+>
+> ```typescript
+> // deploy.ts — correr una vez por red
+> const NETWORKS = {
+>   bsc_testnet: {
+>     rpc: "https://data-seed-prebsc-1-s1.binance.org:8545",
+>     chainId: 97,
+>     faucet: "testnet.bnbchain.org/faucet-smart",
+>   },
+>   rsk_testnet: {
+>     rpc: "https://public-node.testnet.rsk.co",
+>     chainId: 31,
+>     faucet: "faucet.rootstock.io",
+>   },
+>   hedera_testnet: {
+>     rpc: "https://testnet.hashio.io/api",
+>     chainId: 296,
+>     faucet: "portal.hedera.com (crear cuenta gratis)",
+>   },
+> };
+> // npx hardhat run scripts/deploy.ts --network bsc_testnet
+> // npx hardhat run scripts/deploy.ts --network rsk_testnet
+> // npx hardhat run scripts/deploy.ts --network hedera_testnet
+> ```
+>
+> Guardar cada address en `.env.local`:
+>
+> ```
+> NEXT_PUBLIC_CONTRACT_BSC=0x...
+> NEXT_PUBLIC_CONTRACT_RSK=0x...
+> NEXT_PUBLIC_CONTRACT_HEDERA=0x...
+> ```
+>
+> El frontend usa el address correcto según qué red tiene conectada la wallet del usuario.
+
+---
+
+## PARTE 1b — Arquitectura Multichain con LayerZero
+
+> **Esta parte viene después de los deploys en cada red.** El contrato base (VESTA.sol) ya existe. Acá lo extendemos para que las redes se comuniquen entre sí.
+
+### El concepto
+
+```
+BSC Testnet (HUB) ←→ LayerZero ←→ RSK Testnet (SPOKE)
+                  ←→ LayerZero ←→ Hedera Testnet (SPOKE)
+
+Un certificado minteado en BSC es visible desde RSK y Hedera.
+El consumidor en cualquier red puede verificar el NFT sin importar dónde fue minteado.
+```
+
+### Por qué BSC como HUB
+
+BSC Testnet es el track con mayor premio y el que tiene el requisito obligatorio de 2 txs. El hub vive ahí. Los spokes en RSK y Hedera son listeners — reciben el mensaje y registran el certificado localmente.
+
+### Instalación
+
+```bash
+npm install @layerzerolabs/lz-evm-sdk-v2
+npm install @layerzerolabs/toolbox-hardhat
+```
+
+### Contrato HUB — `contracts/VESTAHub.sol`
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+
+contract VESTAHub is OApp, ERC721URIStorage {
+    uint256 private _tokenIds;
+
+    struct Certificate {
+        string bodega;
+        string coordenadas;
+        uint256 timestamp;
+        string imageHash;
+        int256 ndvi;
+        int256 ndre;
+        int256 ndwi;
+        string climateEvent;
+        bool isLimitedEdition;
+    }
+
+    mapping(uint256 => Certificate) public certificates;
+    mapping(address => uint256[]) public ownerTokens;
+
+    event CertificateMinted(uint256 tokenId, string bodega, bool isLimitedEdition);
+    event CertificateBridged(uint256 tokenId, uint32 dstChainId);
+
+    constructor(address _endpoint, address _owner)
+        OApp(_endpoint, _owner)
+        ERC721("VESTA Certificate", "VESTA") {}
+
+    // Mintear en BSC y notificar a los spokes via LayerZero
+    function mintAndBridge(
+        string memory bodega,
+        string memory coordenadas,
+        string memory imageHash,
+        int256 ndvi, int256 ndre, int256 ndwi,
+        string memory climateEvent,
+        uint32[] memory dstChainIds,  // chains donde replicar
+        bytes[] memory options
+    ) external payable returns (uint256) {
+        _tokenIds++;
+        uint256 tokenId = _tokenIds;
+
+        certificates[tokenId] = Certificate({
+            bodega: bodega,
+            coordenadas: coordenadas,
+            timestamp: block.timestamp,
+            imageHash: imageHash,
+            ndvi: ndvi,
+            ndre: ndre,
+            ndwi: ndwi,
+            climateEvent: climateEvent,
+            isLimitedEdition: bytes(climateEvent).length > 0
+        });
+
+        ownerTokens[msg.sender].push(tokenId);
+        _safeMint(msg.sender, tokenId);
+
+        // Notificar a cada spoke via LayerZero
+        bytes memory payload = abi.encode(tokenId, bodega, coordenadas, imageHash, ndvi, ndre, ndwi, climateEvent);
+        for (uint i = 0; i < dstChainIds.length; i++) {
+            _lzSend(dstChainIds[i], payload, options[i], MessagingFee(msg.value / dstChainIds.length, 0), payable(msg.sender));
+            emit CertificateBridged(tokenId, dstChainIds[i]);
+        }
+
+        emit CertificateMinted(tokenId, bodega, bytes(climateEvent).length > 0);
+        return tokenId;
+    }
+
+    function getCertificate(uint256 tokenId) public view returns (Certificate memory) {
+        return certificates[tokenId];
+    }
+
+    function getCollectionByOwner(address owner) public view returns (uint256[] memory) {
+        return ownerTokens[owner];
+    }
+
+    // Estimar fee de LayerZero antes de mintear
+    function estimateFee(uint32 dstChainId, bytes memory payload, bytes memory options)
+        public view returns (uint256 nativeFee) {
+        MessagingFee memory fee = _quote(dstChainId, payload, options, false);
+        return fee.nativeFee;
+    }
+
+    function _lzReceive(Origin calldata, bytes32, bytes calldata, address, bytes calldata) internal override {}
+}
+```
+
+### Contrato SPOKE — `contracts/VESTASpoke.sol`
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
+
+contract VESTASpoke is OApp {
+    struct Certificate {
+        string bodega;
+        string coordenadas;
+        string imageHash;
+        int256 ndvi;
+        int256 ndre;
+        int256 ndwi;
+        string climateEvent;
+        bool isLimitedEdition;
+        uint256 originTokenId;  // tokenId en el HUB
+    }
+
+    mapping(uint256 => Certificate) public certificates;
+    uint256 public totalReceived;
+
+    event CertificateReceived(uint256 tokenId, string bodega);
+
+    constructor(address _endpoint, address _owner) OApp(_endpoint, _owner) {}
+
+    // Recibe el mensaje del HUB via LayerZero
+    function _lzReceive(
+        Origin calldata,
+        bytes32,
+        bytes calldata payload,
+        address,
+        bytes calldata
+    ) internal override {
+        (uint256 tokenId, string memory bodega, string memory coordenadas,
+         string memory imageHash, int256 ndvi, int256 ndre, int256 ndwi,
+         string memory climateEvent) = abi.decode(payload, (uint256, string, string, string, int256, int256, int256, string));
+
+        certificates[tokenId] = Certificate({
+            bodega: bodega,
+            coordenadas: coordenadas,
+            imageHash: imageHash,
+            ndvi: ndvi,
+            ndre: ndre,
+            ndwi: ndwi,
+            climateEvent: climateEvent,
+            isLimitedEdition: bytes(climateEvent).length > 0,
+            originTokenId: tokenId
+        });
+
+        totalReceived++;
+        emit CertificateReceived(tokenId, bodega);
+    }
+
+    function getCertificate(uint256 tokenId) public view returns (Certificate memory) {
+        return certificates[tokenId];
+    }
+}
+```
+
+### Endpoints de LayerZero por red (Testnet)
+
+```typescript
+// lib/layerzero.ts
+export const LZ_ENDPOINTS = {
+  bsc_testnet: {
+    endpoint: "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    chainId: 40102, // LayerZero chain ID (distinto al EVM chainId)
+    rpc: "https://data-seed-prebsc-1-s1.binance.org:8545",
+  },
+  rsk_testnet: {
+    endpoint: "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    chainId: 40219,
+    rpc: "https://public-node.testnet.rsk.co",
+  },
+  hedera_testnet: {
+    endpoint: "0x6EDCE65403992e310A62460808c4b910D972f10f",
+    chainId: 40285,
+    rpc: "https://testnet.hashio.io/api",
+  },
+};
+```
+
+### Script de deploy multichain — `scripts/deploy-multichain.ts`
+
+```typescript
+import { ethers } from "hardhat";
+
+async function main() {
+  // 1. Deploy HUB en BSC Testnet
+  console.log("Deployando HUB en BSC Testnet...");
+  const Hub = await ethers.getContractFactory("VESTAHub");
+  const hub = await Hub.deploy(
+    "0x6EDCE65403992e310A62460808c4b910D972f10f", // LZ endpoint BSC testnet
+    (await ethers.getSigners())[0].address,
+  );
+  await hub.waitForDeployment();
+  console.log("HUB deployado en:", await hub.getAddress());
+
+  // 2. Deploy SPOKE en RSK Testnet
+  // (correr con --network rsk_testnet)
+  // const Spoke = await ethers.getContractFactory("VESTASpoke")
+  // const spoke = await Spoke.deploy("0x...", owner)
+
+  // 3. Configurar peers (conectar HUB con SPOKEs)
+  // await hub.setPeer(40219, ethers.zeroPadValue(spokeRSKAddress, 32))
+  // await hub.setPeer(40285, ethers.zeroPadValue(spokeHederaAddress, 32))
+
+  // 4. Configurar enforcedOptions para cada ruta
+}
+
+main();
+```
+
+### Orden de deploy
+
+```bash
+# Paso 1: Deploy HUB en BSC Testnet
+npx hardhat run scripts/deploy-multichain.ts --network bsc_testnet
+# → Guardar HUB_ADDRESS en .env.local
+
+# Paso 2: Deploy SPOKE en RSK
+npx hardhat run scripts/deploy-spoke.ts --network rsk_testnet
+# → Guardar SPOKE_RSK_ADDRESS en .env.local
+
+# Paso 3: Deploy SPOKE en Hedera
+npx hardhat run scripts/deploy-spoke.ts --network hedera_testnet
+# → Guardar SPOKE_HEDERA_ADDRESS en .env.local
+
+# Paso 4: Conectar HUB con SPOKEs (setPeer)
+npx hardhat run scripts/set-peers.ts --network bsc_testnet
+```
+
+### Variables de entorno actualizadas
+
+```
+NEXT_PUBLIC_HUB_ADDRESS=[BSC Testnet — contrato principal]
+NEXT_PUBLIC_SPOKE_RSK=[RSK Testnet — contrato spoke]
+NEXT_PUBLIC_SPOKE_HEDERA=[Hedera Testnet — contrato spoke]
+NEXT_PUBLIC_LZ_BSC_CHAIN_ID=40102
+NEXT_PUBLIC_LZ_RSK_CHAIN_ID=40219
+NEXT_PUBLIC_LZ_HEDERA_CHAIN_ID=40285
+```
+
+### En el frontend — `/api/certify/route.ts`
+
+```typescript
+// Al certificar, mintear en HUB (BSC) y bridgear a los spokes
+const tx = await vestHub.mintAndBridge(
+  bodega,
+  coordenadas,
+  imageHash,
+  ndvi,
+  ndre,
+  ndwi,
+  climateEvent,
+  [40219, 40285], // RSK + Hedera LayerZero chain IDs
+  [options, options],
+  { value: estimatedFee },
+);
+```
+
+### Checklist Parte 1b — LayerZero Multichain
+
+- [ ] VESTAHub.sol escrito y compilando
+- [ ] VESTASpoke.sol escrito y compilando
+- [ ] Deploy HUB en BSC Testnet → address guardado
+- [ ] Deploy SPOKE en RSK Testnet → address guardado
+- [ ] Deploy SPOKE en Hedera Testnet → address guardado
+- [ ] setPeer configurado entre HUB y SPOKEs
+- [ ] Test: mintear en BSC → verificar que llegó a RSK
+- [ ] Test: mintear en BSC → verificar que llegó a Hedera
+- [ ] estimateFee funcionando para calcular el gas de LayerZero
+
+> **Recurso oficial:** https://docs.layerzero.network/v2/developers/evm/getting-started
+> **Testnet faucets para gas en cada red:**
+>
+> - BSC: testnet.bnbchain.org/faucet-smart
+> - RSK: faucet.rootstock.io
+> - Hedera: portal.hedera.com
 
 ---
 
@@ -250,7 +605,7 @@ function evaluatePixel(s) {
 
 ### 2b. `/api/weather/route.ts`
 
-**Input (POST):** `{ "lat": -33.6644, "lon": -69.2368 }`
+**Input (POST):** `{ "lat": number, "lon": number }` — coordenadas calculadas del centro del bbox ingresado por el usuario
 
 **Llamada a OpenMeteo:**
 
@@ -359,10 +714,41 @@ function calcTempDerivative(temps: number[]): number[] {
 ### 3a. Página principal (`app/page.tsx`)
 
 Mapa de Mendoza centrado en Valle de Uco (`[-33.9, -69.0]`, zoom 10).
-Botón prominente "Analizar mi parcela".
-Al clickear: modo dibujo sobre el mapa para seleccionar bbox.
-Coordenadas pre-cargadas de Monteviejo para el demo: `[-69.26, -33.69, -69.21, -33.64]`
-Al confirmar bbox → spinner → redirect a `/dashboard?bbox=...`
+**No hay coordenadas hardcodeadas.** El usuario define su parcela de tres formas posibles:
+
+**Opción A — Dibujar en el mapa (principal):**
+
+- Botón prominente "Analizar mi parcela" activa modo dibujo
+- El usuario dibuja un rectángulo sobre su terreno en el mapa
+- El bbox se calcula automáticamente de las esquinas del rectángulo dibujado
+
+**Opción B — Buscar por nombre:**
+
+- Campo de texto: "Buscar bodega o localidad..."
+- Autocomplete con nombres de zonas vitivinícolas de Mendoza (Luján de Cuyo, Valle de Uco, Maipú, San Rafael, etc.)
+- Al seleccionar, el mapa hace zoom a esa zona y el usuario dibuja encima
+
+**Opción C — Ingresar coordenadas manualmente:**
+
+- Link "Ingresar coordenadas" debajo del mapa
+- Abre un panel con 4 campos: lat min, lat max, lon min, lon max
+- Validación: debe estar dentro del bounding box de Mendoza (-35.5 a -31.5 lat, -70.5 a -66.5 lon)
+- Botón "Usar mi ubicación" → geolocalización del browser si el usuario está en el campo
+
+**Flujo tras confirmar el bbox:**
+
+- Preview del área seleccionada con su tamaño en hectáreas estimado
+- Botón "Analizar esta parcela" → spinner con los 3 pasos visibles → redirect a `/dashboard?bbox=lon_min,lat_min,lon_max,lat_max`
+
+**Validaciones:**
+
+- Área mínima: 1 hectárea (evitar análisis de puntos)
+- Área máxima: 5.000 hectáreas (evitar requests enormes a Sentinel)
+- Si el área supera el máximo: mensaje "Seleccioná una zona más pequeña para el análisis"
+
+**Para el demo en el hackathon:**
+
+- Un botón discreto "Cargar ejemplo — Monteviejo" que carga el bbox de Bodega Monteviejo sin hardcodearlo en el flujo principal. Solo visible en modo demo.
 
 ### 3b. Dashboard (`app/dashboard/page.tsx`)
 
@@ -517,6 +903,128 @@ export async function registerOnHedera(certificate: {
 
 ---
 
+## PARTE 4b — Stellar Hackathon
+
+> **Modalidad: Hackathon completo.** Código funcional con Soroban integrado al producto.
+
+### Contexto del track Stellar
+
+- **Hackathon (USD 1.500):** 1º USD 700 · 2º USD 600 · 3º USD 200
+- **Deadline:** Viernes 17hs — igual que los demás tracks.
+- **Jurado preselección (viernes):** Alberto Chaves (Trustless Work) y Maria Elisa Araya (Buen Día Builders)
+- **Jurado final (sábado):** Ann (Stellar SDF), Alejandra Vargas (Starmark), Martin Gutter (BAF)
+- **Guía oficial preparada para el evento:** `github.com/BuenDia-Builders/stellar-guide-vendimia-tech`
+- **Docs Lendara (protocolo de pagos Stellar):** `lendaraprotocol.gitbook.io/lendara`
+
+**Entregables obligatorios Stellar Hackathon:**
+
+- Repo público (GitHub) con código original desarrollado en el evento
+- Demo funcional accesible por link
+- Video demo + pitch (5 min max)
+- Deck de slides
+- Evidencia de validación del problema (el PDF del estudio de clientes cubre esto)
+
+**El argumento para el jurado de Stellar:**
+
+```
+"Los microseguros paramétricos de VESTA necesitan pagos instantáneos en stablecoin
+al productor cuando se confirma una helada. Stellar Soroban es la infraestructura
+ideal: bajo costo por transacción, finality en 5 segundos, y soporte nativo para
+USDC. El smart contract tiene dos condiciones: oráculo climático confirma helada +
+caída de NDVI ≥15% → pago automático al productor sin peritos ni burocracia.
+Cero tasadores. Cero espera de 20 días. Liquidez automática la misma noche."
+```
+
+### Implementación Soroban
+
+**Instalación:**
+
+```bash
+# Rust + Soroban CLI
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo install --locked soroban-cli
+soroban network add testnet --rpc-url https://soroban-testnet.stellar.org --network-passphrase "Test SDF Network ; September 2015"
+```
+
+**Qué construir — contrato mínimo (`contracts/vesta_stellar/src/lib.rs`):**
+
+El contrato de microseguro paramétrico. Más simple que el ERC-721 — no necesita NFT, solo:
+
+```rust
+// Lógica mínima del contrato Soroban
+// 1. register_policy(producer: Address, coverage_usdc: i128, frost_threshold: i32, ndvi_drop_threshold: i32)
+//    → guarda la póliza del productor
+
+// 2. trigger_payout(producer: Address, min_temp: i32, ndvi_drop: i32)
+//    → si min_temp <= frost_threshold Y ndvi_drop >= ndvi_drop_threshold
+//    → transfiere coverage_usdc en USDC al productor automáticamente
+
+// 3. get_policy(producer: Address) → Policy
+//    → devuelve los datos de la póliza
+```
+
+**Deploy en Stellar Testnet:**
+
+```bash
+soroban contract build
+soroban contract deploy --wasm target/wasm32-unknown-unknown/release/vesta_stellar.wasm --network testnet --source [TU_KEYPAIR]
+```
+
+**Integración con el frontend (lib/stellar.ts):**
+
+```typescript
+import * as StellarSdk from "@stellar/stellar-sdk";
+
+// npm install @stellar/stellar-sdk
+const server = new StellarSdk.rpc.Server("https://soroban-testnet.stellar.org");
+
+export async function triggerPayout(
+  producerAddress: string,
+  minTemp: number, // temperatura mínima real detectada x100 (ej: 310 = 3.1°C)
+  ndviDrop: number, // caída de NDVI en % (ej: 20 = 20%)
+) {
+  // Llamar a trigger_payout del contrato Soroban
+  // Si las condiciones se cumplen, el contrato ejecuta el pago automáticamente
+}
+```
+
+**Caso de uso para el pitch de Stellar:**
+
+```
+El 23 de marzo de 2026:
+1. VESTA detecta temperatura mínima proyectada: 3.1°C (umbral: 2°C)
+2. Imagen Sentinel-2 post-evento confirma caída de NDVI ≥15%
+3. El smart contract Soroban verifica ambas condiciones
+4. Pago automático en USDC al productor — sin tasador, sin espera de 20 días
+5. Todo verificable on-chain en Stellar Explorer
+```
+
+**Checklist Parte 4b — Stellar Hackathon:**
+
+- [ ] Leer guía oficial: github.com/BuenDia-Builders/stellar-guide-vendimia-tech
+- [ ] Leer docs Lendara: lendaraprotocol.gitbook.io/lendara
+- [ ] Registrar en DoraHacks track Stellar Hackathon antes del viernes 17hs
+- [ ] Contrato Soroban compilando sin errores (cargo build)
+- [ ] Deploy en Stellar Testnet con address guardado en .env.local
+- [ ] Función trigger_payout ejecutable desde el frontend de VESTA
+- [ ] Al menos 1 transacción exitosa en Stellar Testnet
+- [ ] Integración visible en el demo: botón "Activar Microseguro" en el dashboard
+
+### Tracks actualizados con Stellar
+
+```
+TRACK           MODALIDAD        PREMIO POSIBLE     ESFUERZO
+─────────────────────────────────────────────────────────────
+Stellar         Hackathon        USD 200-700        ALTO (Soroban — PRIORIDAD)
+Hedera          Hackathon        USD 300 + ~1000    MEDIO (JS SDK)
+BNB Chain       Hackathon        USD 300-800        BAJO (Solidity ✅ ya hecho)
+Rootstock       Hackathon        USD 100 bono       MUY BAJO (mismo deploy)
+Beexo Connect   Add-on           USD 50 bono        MUY BAJO (npm install)
+─────────────────────────────────────────────────────────────
+MÍNIMO GARANTIZABLE (bonos + Hedera pool): USD 350-400
+CON STELLAR HACKATHON TOP 3:               USD 550-1.100
+```
+
 ## PARTE 5 — Demo y entregables
 
 ### El demo mínimo que debe funcionar
@@ -590,7 +1098,7 @@ Next.js 14 · TypeScript · Solidity · Hedera SDK · Gemini · Sentinel-2
 - [ ] README.md con contratos y instrucciones
 - [ ] Video demo de 2-3 minutos subido
 - [ ] Proyecto registrado en DoraHacks (ANTES DEL JUEVES 17hs)
-- [ ] Tracks seleccionados en DoraHacks: Hedera + BNB + Beexo
+- [ ] Tracks seleccionados en DoraHacks: Stellar Hackathon + Hedera + BNB + Beexo
 - [ ] Deck de slides preparado
 
 ---
@@ -600,20 +1108,23 @@ Next.js 14 · TypeScript · Solidity · Hedera SDK · Gemini · Sentinel-2
 ```
 DÍA 1 (mañana):
   09:00 — Crear repo GitHub, instalar Next.js, estructura de carpetas
-  09:30 — Registrar en DoraHacks (URGENTE, no olvidar)
-  10:00 — Parte 1: Contrato Solidity + deploy BSC testnet
-  12:00 — Parte 2a: /api/analyze (Sentinel-2 + Gemini)
-  14:00 — Parte 2b: /api/weather (OpenMeteo + alertas)
-  16:00 — Parte 4: Hedera HCS registro
-  18:00 — Review: ¿hay 2 txs en BSC? ¿Hedera funcionando?
+  09:30 — Registrar en DoraHacks TODOS los tracks: Stellar + Hedera + BNB + Beexo (URGENTE)
+  10:00 — Parte 1: Contrato Solidity + deploy BSC testnet + deploy RSK testnet
+  11:30 — Parte 4b: Arrancar Soroban — instalar Rust + Soroban CLI + leer guía
+  12:30 — Parte 2a: /api/analyze (Sentinel-2 + Gemini)
+  14:00 — Parte 2b: /api/weather (OpenMeteo + alertas dT/dt)
+  15:30 — Parte 4b: Contrato Soroban — escribir y compilar
+  17:00 — Parte 4: Hedera HCS registro
+  18:00 — Review: ¿2 txs en BSC? ¿Soroban compilando? ¿Hedera funcionando?
 
 DÍA 2 (pasado mañana):
-  09:00 — Parte 3a/3b: Mapa + Dashboard
-  11:00 — Parte 2d: /api/certify + CertifyButton
-  13:00 — Parte 3c: Pasaporte consumidor (QR)
-  15:00 — Parte 3e: xo-connect integrado
-  16:00 — Deploy Vercel, README, video demo
-  17:00 — DEADLINE DoraHacks — subir todo
+  09:00 — Parte 4b: Deploy Soroban en Stellar Testnet + test trigger_payout
+  10:30 — Parte 3a/3b: Mapa + Dashboard
+  12:00 — Parte 2d: /api/certify + CertifyButton (BSC + Stellar juntos)
+  13:30 — Parte 3c: Pasaporte consumidor (QR)
+  14:30 — Parte 3e: xo-connect integrado + Beexo SDK
+  15:30 — Deploy Vercel, README con todos los contratos, video demo
+  16:45 — DEADLINE DoraHacks — subir todo antes de las 17hs
 
 DÍA 3 (pitch):
   Mañana: Ensayar pitch 3 veces en voz alta
@@ -627,9 +1138,13 @@ DÍA 3 (pitch):
 Estos datos ya están calculados y pueden usarse hardcodeados en el demo:
 
 ```typescript
-// Coordenadas Bodega Monteviejo (testeadas y funcionando)
-const MONTEVIEJO_BBOX = [-69.26, -33.69, -69.21, -33.64];
-const MONTEVIEJO_CENTER = { lat: -33.6644, lon: -69.2368 };
+// Coordenadas de EJEMPLO para el botón de demo — no hardcodear en el flujo principal
+// El flujo real usa el bbox que dibuja o ingresa el usuario
+const DEMO_BBOX = [-69.26, -33.69, -69.21, -33.64]; // solo para botón "Cargar ejemplo"
+const DEMO_CENTER = { lat: -33.6644, lon: -69.2368 }; // solo para botón "Cargar ejemplo"
+
+// Helper para calcular el centro de cualquier bbox ingresado por el usuario:
+// const center = { lat: (bbox[1] + bbox[3]) / 2, lon: (bbox[0] + bbox[2]) / 2 }
 
 // Evento de helada real detectado
 const FROST_EVENT = {

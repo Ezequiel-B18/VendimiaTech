@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const d=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const p=JSON.parse\\(d\\); console.log\\(''''peerDeps:'''', JSON.stringify\\(p.peerDependencies||{}, null, 2\\)\\); console.log\\(''''deps:'''', JSON.stringify\\(p.dependencies||{}, null, 2\\)\\);\")",
+      "Bash(node -e \"const p=require\\(''d:/proyectos/VendimiaTech/vesta/node_modules/@layerzerolabs/lz-evm-oapp-v2/package.json''\\); console.log\\(JSON.stringify\\(Object.assign\\({}, p.dependencies, p.peerDependencies\\), null, 2\\)\\)\")"
+    ]
+  }
+}
