@@ -28,6 +28,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [zoneSearch, setZoneSearch] = useState("");
   const [filteredZones, setFilteredZones] = useState<typeof ZONES>([]);
+  const [wineCode, setWineCode] = useState("");
 
   const handleBboxSelected = (bbox: [number, number, number, number]) => {
     setSelectedBbox(bbox);
@@ -55,17 +56,88 @@ export default function HomePage() {
     }
   };
 
+  const handleMenuNavigate = (sectionId: string) => {
+    const section = document.getElementById(sectionId);
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleBottleLookup = () => {
+    const value = wineCode.trim();
+    if (!value) return;
+
+    const normalized = value.replace(/^bottle=/i, "");
+    if (!normalized) return;
+
+    router.push(`/bottle/${encodeURIComponent(normalized)}`);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-950 to-gray-950 text-white">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_35%),linear-gradient(to_bottom,#052e16,#0a0f1d_45%,#020617)] text-white">
       {/* Header */}
-      <header className="px-6 py-5 flex items-center gap-3 border-b border-white/10">
-        <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center text-lg">
-          🛰️
+      <header className="px-6 py-5 border-b border-white/10 backdrop-blur-sm bg-slate-950/25">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl shadow-lg shadow-emerald-900/40 flex items-center justify-center text-lg">
+              🛰️
+            </div>
+            <span className="font-bold text-xl tracking-tight">VESTA</span>
+            <span className="text-green-400 text-sm ml-1">
+              Vegetation Satellite Tracker Analytics
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => handleMenuNavigate("about-us")}
+              className="px-4 py-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors text-sm text-emerald-100"
+            >
+              About Us
+            </button>
+            <button
+              onClick={() => handleMenuNavigate("business-model")}
+              className="px-4 py-2 rounded-full border border-sky-300/20 bg-sky-500/10 hover:bg-sky-500/20 transition-colors text-sm text-sky-100"
+            >
+              Modelo de negocio
+            </button>
+            <button
+              onClick={() => handleMenuNavigate("faqs")}
+              className="px-4 py-2 rounded-full border border-amber-300/20 bg-amber-500/10 hover:bg-amber-500/20 transition-colors text-sm text-amber-100"
+            >
+              FAQs
+            </button>
+          </div>
         </div>
-        <span className="font-bold text-xl tracking-tight">VESTA</span>
-        <span className="text-green-400 text-sm ml-1">
-          Vegetation Satellite Tracker Analytics
-        </span>
+
+        <details className="mt-4 group rounded-2xl border border-emerald-300/20 bg-gradient-to-r from-emerald-500/10 to-sky-500/10 open:shadow-lg open:shadow-emerald-950/30">
+          <summary className="list-none cursor-pointer px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-emerald-100">Tracking de vino</p>
+              <p className="text-xs text-emerald-50/70">Ingresá el código del QR para ver su pasaporte</p>
+            </div>
+            <span className="text-sm text-emerald-200 transition-transform group-open:rotate-180">▼</span>
+          </summary>
+
+          <div className="px-4 pb-4">
+            <div className="h-px bg-white/10 mb-3" />
+            <div className="flex gap-2 max-w-md">
+              <input
+                type="text"
+                value={wineCode}
+                onChange={(e) => setWineCode(e.target.value)}
+                placeholder="Ej: 1 o bottle=1"
+                className="flex-1 bg-slate-900/60 border border-white/20 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <button
+                onClick={handleBottleLookup}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-sm font-semibold text-white"
+              >
+                Ver vino
+              </button>
+            </div>
+          </div>
+        </details>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-10">
@@ -79,6 +151,10 @@ export default function HomePage() {
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
             Análisis satelital Sentinel-2 + IA agronómica + alertas de helada 8hs antes.
             Seleccioná tu parcela en el mapa y analizala en segundos.
+          </p>
+
+          <p className="mt-4 text-base sm:text-lg font-medium text-amber-300 max-w-3xl mx-auto">
+            El satélite que cuida la cosecha es el mismo que cuenta su historia en la botella.
           </p>
 
           {/* Real frost event badge */}
@@ -175,6 +251,64 @@ export default function HomePage() {
             </div>
           ))}
         </div>
+
+        <section
+          id="about-us"
+          className="mt-12 rounded-[2rem] p-[1px] bg-gradient-to-br from-emerald-300/35 via-sky-300/15 to-transparent"
+        >
+          <div className="rounded-[2rem] bg-slate-950/70 backdrop-blur-md px-6 py-7">
+            <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/20">
+              About Us
+            </span>
+            <h2 className="text-2xl font-bold text-white mt-3">Tecnología que protege el viñedo y valida su origen</h2>
+            <p className="text-gray-300 mt-3 leading-relaxed">
+            VESTA combina imágenes satelitales, análisis agronómico con IA y verificación en blockchain para proteger
+            la producción vitivinícola de Mendoza y contar la historia real de cada botella.
+            </p>
+          </div>
+        </section>
+
+        <section
+          id="business-model"
+          className="mt-6 rounded-[2rem] p-[1px] bg-gradient-to-br from-sky-300/35 via-indigo-300/15 to-transparent"
+        >
+          <div className="rounded-[2rem] bg-slate-950/70 backdrop-blur-md px-6 py-7">
+            <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-200 border border-sky-400/20">
+              Modelo de negocio
+            </span>
+            <h2 className="text-2xl font-bold text-white mt-3">Suscripción productiva + certificación exportable</h2>
+            <p className="text-gray-300 mt-3 leading-relaxed">
+            Productores acceden a alertas tempranas y monitoreo por suscripción mensual. Bodegas exportadoras usan
+            certificación digital verificable para reducir costos de auditoría y fortalecer confianza comercial.
+            </p>
+          </div>
+        </section>
+
+        <section
+          id="faqs"
+          className="mt-6 mb-12 rounded-[2rem] p-[1px] bg-gradient-to-br from-amber-300/35 via-orange-300/15 to-transparent"
+        >
+          <div className="rounded-[2rem] bg-slate-950/70 backdrop-blur-md px-6 py-7">
+            <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-200 border border-amber-400/20">
+              FAQs
+            </span>
+            <h2 className="text-2xl font-bold text-white mt-3">Preguntas frecuentes</h2>
+            <div className="mt-4 space-y-3 text-gray-300">
+              <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <summary className="cursor-pointer font-semibold text-white">¿Necesito conocimientos técnicos para usar VESTA?</summary>
+                <p className="mt-2">No. Solo seleccionás tu parcela y recibís un diagnóstico claro con recomendaciones accionables.</p>
+              </details>
+              <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <summary className="cursor-pointer font-semibold text-white">¿Qué pasa si escaneo un QR de botella?</summary>
+                <p className="mt-2">Podés ingresar el código en Tracking de vino para abrir directamente el pasaporte digital de esa botella.</p>
+              </details>
+              <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <summary className="cursor-pointer font-semibold text-white">¿La certificación on-chain es obligatoria?</summary>
+                <p className="mt-2">No. Es opcional y agrega trazabilidad verificable cuando la bodega quiere respaldar su análisis.</p>
+              </details>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
