@@ -14,7 +14,7 @@
     "@layerzerolabs/lz-evm-oapp-v2": "^3.0.167",
     "@layerzerolabs/lz-evm-protocol-v2": "^3.0.167",
     "@layerzerolabs/lz-evm-sdk-v2": "^3.0.167",
-    "@openzeppelin/contracts": "^5.6.1",
+    "@openzeppelin/contracts": "^4.9.6",
     "@react-leaflet/core": "^3.0.0",
     "@types/leaflet": "^1.9.21",
     "dotenv": "^17.3.1",

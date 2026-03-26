@@ -56,6 +56,7 @@ function DashboardContent() {
   const [certError, setCertError] = useState<string | null>(null);
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [selectedChain, setSelectedChain] = useState<"bnb" | "rsk">("bnb");
+  const [signingMode, setSigningMode] = useState<"server" | "wallet">("server");
 
   useEffect(() => {
     if (!bbox) return;
@@ -107,29 +108,46 @@ function DashboardContent() {
 
   const handleCertify = async () => {
     if (!analysis) return;
+    if (signingMode === "wallet" && !wallet) {
+      setCertError("Conectá tu wallet primero.");
+      return;
+    }
     setCertStep("minting");
     setCertError(null);
     try {
       const lat = bbox ? (bbox[1] + bbox[3]) / 2 : 0;
       const lon = bbox ? (bbox[0] + bbox[2]) / 2 : 0;
-      const res = await fetch("/api/certify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chain: selectedChain,
-          bodega: "Parcela VESTA",
-          coordenadas: `${lat.toFixed(4)},${lon.toFixed(4)}`,
-          imageHash: analysis.imageHash,
-          ndvi: analysis.indices.ndvi,
-          ndre: analysis.indices.ndre,
-          ndwi: analysis.indices.ndwi,
-          climateEvent: weather?.frostRisk ? "helada_detectada" : "",
-          walletAddress: wallet?.address ?? "",
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al mintear");
-      setCertResult(data);
+      const mintParams = {
+        bodega: "Parcela VESTA",
+        coordenadas: `${lat.toFixed(4)},${lon.toFixed(4)}`,
+        imageHash: analysis.imageHash,
+        ndvi: analysis.indices.ndvi,
+        ndre: analysis.indices.ndre,
+        ndwi: analysis.indices.ndwi,
+        climateEvent: weather?.frostRisk ? "helada_detectada" : "",
+      };
+
+      if (signingMode === "wallet" && wallet) {
+        // Client-side: user signs with their own wallet
+        const { mintWithWallet } = await import("@/lib/blockchain/clientSign");
+        const data = await mintWithWallet(wallet.provider, selectedChain, mintParams);
+        setCertResult(data);
+      } else {
+        // Server-side: deployer key signs
+        const res = await fetch("/api/certify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chain: selectedChain,
+            ...mintParams,
+            walletAddress: wallet?.address ?? "",
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Error al mintear");
+        setCertResult(data);
+      }
+
       setCertStep("success");
     } catch (err) {
       setCertError(err instanceof Error ? err.message : "Error desconocido");
@@ -305,6 +323,45 @@ function DashboardContent() {
               })}
             </div>
 
+            {/* Signing mode selector */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(["server", "wallet"] as const).map((mode) => {
+                const cfg = {
+                  server: { label: "⚡ Rápido", sub: "Servidor firma", detail: "Sin wallet · Demo" },
+                  wallet: { label: "🔒 Mi Wallet", sub: "Vos firmás", detail: "MetaMask / Beexo" },
+                };
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => { setSigningMode(mode); setCertStep("idle"); }}
+                    className={`rounded-lg p-2.5 text-left border transition-all ${
+                      signingMode === mode
+                        ? "border-blue-500 bg-blue-900/20 text-white"
+                        : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold">{cfg[mode].label}</p>
+                    <p className="text-[10px] text-gray-400">{cfg[mode].sub}</p>
+                    <p className="text-[10px] text-gray-600">{cfg[mode].detail}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Wallet required warning */}
+            {signingMode === "wallet" && !wallet && (
+              <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-3 py-2 mb-3">
+                <span>⚠️</span>
+                <span>Conectá tu wallet con el botón del header</span>
+              </div>
+            )}
+            {signingMode === "wallet" && wallet && (
+              <div className="flex items-center gap-2 text-xs text-green-400 bg-green-900/20 border border-green-700/30 rounded-lg px-3 py-2 mb-3">
+                <span>✓</span>
+                <span>{wallet.address.slice(0, 8)}… conectada vía {wallet.via === "beexo" ? "Beexo" : "MetaMask"}</span>
+              </div>
+            )}
+
             {/* Hash preview */}
             <div className="flex justify-between text-xs mb-3">
               <span className="text-gray-500">Hash imagen</span>
@@ -329,7 +386,9 @@ function DashboardContent() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Minteando en {selectedChain === "bnb" ? "BSC Testnet" : "RSK Testnet"}...
+                {signingMode === "wallet"
+                  ? "Esperando firma en tu wallet..."
+                  : `Minteando en ${selectedChain === "bnb" ? "BSC Testnet" : "RSK Testnet"}...`}
               </div>
             )}
 

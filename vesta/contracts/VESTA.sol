@@ -39,7 +39,7 @@ contract VESTA is ERC721URIStorage, Ownable {
         bool isLimitedEdition
     );
 
-    constructor() ERC721("VESTA Certificate", "VESTA") Ownable(msg.sender) {}
+    constructor() ERC721("VESTA Certificate", "VESTA") {}
 
     /**
      * @notice Mintea un certificado de análisis satelital
@@ -89,7 +89,7 @@ contract VESTA is ERC721URIStorage, Ownable {
      * @notice Devuelve los datos completos del certificado
      */
     function getCertificate(uint256 tokenId) public view returns (Certificate memory) {
-        require(_ownerOf(tokenId) != address(0), "VESTA: token no existe");
+        require(_exists(tokenId), "VESTA: token no existe");
         return _certificates[tokenId];
     }
 
@@ -104,8 +104,60 @@ contract VESTA is ERC721URIStorage, Ownable {
      * @notice Verifica si un token es edición limitada por evento climático
      */
     function isLimitedEdition(uint256 tokenId) public view returns (bool) {
-        require(_ownerOf(tokenId) != address(0), "VESTA: token no existe");
+        require(_exists(tokenId), "VESTA: token no existe");
         return _certificates[tokenId].isLimitedEdition;
+    }
+
+    /**
+     * @dev Construye los primeros 3 atributos (vigor/madurez/humedad)
+     */
+    function _buildAttrs1(Certificate memory cert) internal pure returns (string memory) {
+        return string(abi.encodePacked(
+            '[{"trait_type":"Bodega","value":"', cert.bodega, '"},',
+            '{"trait_type":"Coordenadas","value":"', cert.coordenadas, '"},',
+            '{"trait_type":"Vigor Vegetativo","value":', _int256ToString(cert.ndvi), '},'
+        ));
+    }
+
+    /**
+     * @dev Construye los últimos atributos (madurez/humedad/hash/edicion)
+     */
+    function _buildAttrs2(Certificate memory cert) internal pure returns (string memory) {
+        string memory climate = cert.isLimitedEdition
+            ? string(abi.encodePacked(',{"trait_type":"Evento Climatico","value":"', cert.climateEvent, '"}'))
+            : '';
+        return string(abi.encodePacked(
+            '{"trait_type":"Madurez","value":', _int256ToString(cert.ndre), '},',
+            '{"trait_type":"Humedad Foliar","value":', _int256ToString(cert.ndwi), '},',
+            '{"trait_type":"Imagen Hash","value":"', cert.imageHash, '"},',
+            '{"trait_type":"Edicion Limitada","value":"', cert.isLimitedEdition ? "Si" : "No", '"}',
+            climate, ']'
+        ));
+    }
+
+    /**
+     * @dev Construye los campos de datos del JSON (parte 1)
+     */
+    function _buildData1(Certificate memory cert) internal pure returns (string memory) {
+        return string(abi.encodePacked(
+            '"bodega":"', cert.bodega, '",',
+            '"coordenadas":"', cert.coordenadas, '",',
+            '"timestamp":', cert.timestamp.toString(), ',',
+            '"imageHash":"', cert.imageHash, '",'
+        ));
+    }
+
+    /**
+     * @dev Construye los campos de datos del JSON (parte 2)
+     */
+    function _buildData2(Certificate memory cert) internal pure returns (string memory) {
+        return string(abi.encodePacked(
+            '"ndvi":', _int256ToString(cert.ndvi), ',',
+            '"ndre":', _int256ToString(cert.ndre), ',',
+            '"ndwi":', _int256ToString(cert.ndwi), ',',
+            '"climateEvent":"', cert.climateEvent, '",',
+            '"isLimitedEdition":', cert.isLimitedEdition ? "true" : "false"
+        ));
     }
 
     /**
@@ -113,19 +165,6 @@ contract VESTA is ERC721URIStorage, Ownable {
      */
     function _buildTokenURI(uint256 tokenId) internal view returns (string memory) {
         Certificate memory cert = _certificates[tokenId];
-
-        string memory attributes = string(abi.encodePacked(
-            '[',
-            '{"trait_type":"Bodega","value":"', cert.bodega, '"},',
-            '{"trait_type":"Coordenadas","value":"', cert.coordenadas, '"},',
-            '{"trait_type":"Vigor Vegetativo","value":', _int256ToString(cert.ndvi), '},',
-            '{"trait_type":"Madurez","value":', _int256ToString(cert.ndre), '},',
-            '{"trait_type":"Humedad Foliar","value":', _int256ToString(cert.ndwi), '},',
-            '{"trait_type":"Imagen Hash","value":"', cert.imageHash, '"},',
-            '{"trait_type":"Edicion Limitada","value":"', cert.isLimitedEdition ? "Si" : "No", '"}',
-            cert.isLimitedEdition ? string(abi.encodePacked(',{"trait_type":"Evento Climatico","value":"', cert.climateEvent, '"}')) : '',
-            ']'
-        ));
 
         string memory name = string(abi.encodePacked(
             cert.isLimitedEdition ? "VESTA Edicion Limitada #" : "VESTA Certificado #",
@@ -136,21 +175,16 @@ contract VESTA is ERC721URIStorage, Ownable {
             ? string(abi.encodePacked("Cosecha historica - ", cert.climateEvent, " - ", cert.bodega))
             : string(abi.encodePacked("Certificado de sostenibilidad satelital - ", cert.bodega));
 
-        string memory json = Base64.encode(bytes(string(abi.encodePacked(
-            '{"name":"', name, '",',
-            '"description":"', description, '",',
+        string memory attributes = string(abi.encodePacked(_buildAttrs1(cert), _buildAttrs2(cert)));
+
+        string memory header = string(abi.encodePacked(
+            '{"name":"', name, '","description":"', description, '",',
             '"image":"https://vesta-satellite.vercel.app/api/og/', tokenId.toString(), '",',
-            '"attributes":', attributes, ',',
-            '"bodega":"', cert.bodega, '",',
-            '"coordenadas":"', cert.coordenadas, '",',
-            '"timestamp":', cert.timestamp.toString(), ',',
-            '"imageHash":"', cert.imageHash, '",',
-            '"ndvi":', _int256ToString(cert.ndvi), ',',
-            '"ndre":', _int256ToString(cert.ndre), ',',
-            '"ndwi":', _int256ToString(cert.ndwi), ',',
-            '"climateEvent":"', cert.climateEvent, '",',
-            '"isLimitedEdition":', cert.isLimitedEdition ? "true" : "false",
-            '}'
+            '"attributes":', attributes, ','
+        ));
+
+        string memory json = Base64.encode(bytes(string(abi.encodePacked(
+            header, _buildData1(cert), _buildData2(cert), '}'
         ))));
 
         return string(abi.encodePacked("data:application/json;base64,", json));
@@ -169,12 +203,13 @@ contract VESTA is ERC721URIStorage, Ownable {
     /**
      * @dev Hook ejecutado después de cada transfer para mantener el índice de owner
      */
-    function _update(
+    function _afterTokenTransfer(
+        address from,
         address to,
         uint256 tokenId,
-        address auth
-    ) internal override returns (address) {
-        address from = super._update(to, tokenId, auth);
+        uint256
+    ) internal override {
+        super._afterTokenTransfer(from, to, tokenId, 1);
 
         // Remover del owner anterior
         if (from != address(0)) {
@@ -192,7 +227,5 @@ contract VESTA is ERC721URIStorage, Ownable {
         if (to != address(0)) {
             _ownerTokens[to].push(tokenId);
         }
-
-        return from;
     }
 }
