@@ -26,7 +26,8 @@
     "react-dom": "^18",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.8.1",
-    "solidity-bytes-utils": "^0.8.4"
+    "solidity-bytes-utils": "^0.8.4",
+    "xo-connect": "^2.1.4"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.3",
