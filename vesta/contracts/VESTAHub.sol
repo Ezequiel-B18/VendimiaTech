@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
 import "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";

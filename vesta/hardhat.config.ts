@@ -29,6 +29,11 @@ const config: HardhatUserConfig = {
       chainId: 31,
       accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
     },
+    hederaTestnet: {
+      url: "https://testnet.hashio.io/api",
+      chainId: 296,
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
+    },
   },
   paths: {
     sources: "./contracts",
