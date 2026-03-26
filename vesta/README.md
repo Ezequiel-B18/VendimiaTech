@@ -44,6 +44,7 @@ npx hardhat run contracts/deploy.ts --network localhost
 ```
 
 Output esperado:
+
 ```
 === VESTA Deploy — Red: localhost ===
 Deployer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
@@ -58,6 +59,7 @@ NEXT_PUBLIC_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
 ```
 
 Copiar el address a `.env.local`:
+
 ```
 NEXT_PUBLIC_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
 ```
@@ -147,6 +149,7 @@ npx hardhat run contracts/deploy.ts --network rskTestnet
 Verificar en: `explorer.testnet.rootstock.io/address/<CONTRACT_ADDRESS>`
 
 > **Nota EVM:** BSC y RSK usan EVM anterior a Cancun. Si el deploy falla con error `mcopy`, cambiar temporalmente en `hardhat.config.ts`:
+>
 > ```typescript
 > evmVersion: "berlin"  // para el deploy en testnet
 > // volver a "cancun" para desarrollo local

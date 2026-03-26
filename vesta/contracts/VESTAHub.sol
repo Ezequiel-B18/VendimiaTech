@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
 import "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -39,6 +40,7 @@ contract VESTAHub is OApp, ERC721URIStorage {
     constructor(address _endpoint, address _owner)
         OApp(_endpoint, _owner)
         ERC721("VESTA Certificate", "VESTA")
+        Ownable(_owner)
     {}
 
     /**
@@ -181,7 +183,7 @@ contract VESTAHub is OApp, ERC721URIStorage {
 
     // Resolución de herencia múltiple
     function supportsInterface(bytes4 interfaceId)
-        public view override(ERC721URIStorage, OApp)
+        public view override(ERC721URIStorage)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
