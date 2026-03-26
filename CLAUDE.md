@@ -427,7 +427,7 @@ GET https://api.open-meteo.com/v1/forecast?
   &forecast_days=7
   &timezone=America/Argentina/Mendoza
 ```
-
+.........
 **Output:** Devolver los datos diarios + calcular:
 
 - `waterBalance`: precipitación - ET0 por día
