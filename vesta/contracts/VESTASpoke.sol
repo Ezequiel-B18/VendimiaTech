@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title VESTASpoke
@@ -34,7 +35,7 @@ contract VESTASpoke is OApp {
         uint32 srcEid
     );
 
-    constructor(address _endpoint, address _owner) OApp(_endpoint, _owner) {}
+    constructor(address _endpoint, address _owner) OApp(_endpoint, _owner) Ownable(_owner) {}
 
     /**
      * @notice Recibe el mensaje del HUB via LayerZero y registra el certificado.
