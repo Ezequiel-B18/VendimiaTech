@@ -7,7 +7,10 @@
       "Bash(npx create-next-app@14 vesta --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --no-git)",
       "Bash(npm install:*)",
       "Bash(npx hardhat:*)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx next:*)",
+      "Bash(python3 -c \"import json,sys; abi=json.load\\(sys.stdin\\); [print\\(f[''''name'''']\\) for f in abi if f.get\\(''''type''''\\)==''''function'''']\")"
     ]
   }
 }
