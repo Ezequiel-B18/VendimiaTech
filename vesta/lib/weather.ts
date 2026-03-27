@@ -31,7 +31,7 @@ export interface WeatherResult {
 
 export async function fetchWeather(
   lat: number,
-  lon: number
+  lon: number,
 ): Promise<WeatherResult> {
   const params = new URLSearchParams({
     latitude: lat.toString(),
@@ -72,7 +72,7 @@ export async function fetchWeather(
     const now = new Date();
     const hoursUntil = Math.max(
       0,
-      Math.round((alertDate.getTime() - now.getTime()) / 3600000)
+      Math.round((alertDate.getTime() - now.getTime()) / 3600000),
     );
     frostAlert = {
       date: frostDay.date,
@@ -94,7 +94,7 @@ export async function fetchWeather(
   // Probable hail risk: strong convective profile proxy
   // (high precipitation + strong winds in the same day)
   const hailDay = forecastDays.find(
-    (d) => d.precipitation >= 8 && d.windSpeed >= 45
+    (d) => d.precipitation >= 8 && d.windSpeed >= 45,
   );
   const hailRisk = !!hailDay;
   const hailAlert = hailDay
@@ -115,10 +115,8 @@ export async function fetchWeather(
 
   const totalPrecip = days.reduce((s, d) => s + d.precipitation, 0);
   const totalET0 = days.reduce((s, d) => s + d.et0, 0);
-  const avgTempMax =
-    days.reduce((s, d) => s + d.tempMax, 0) / days.length;
-  const avgTempMin =
-    days.reduce((s, d) => s + d.tempMin, 0) / days.length;
+  const avgTempMax = days.reduce((s, d) => s + d.tempMax, 0) / days.length;
+  const avgTempMin = days.reduce((s, d) => s + d.tempMin, 0) / days.length;
 
   return {
     daily: days,
