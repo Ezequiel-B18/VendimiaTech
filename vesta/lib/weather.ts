@@ -15,6 +15,10 @@ export interface WeatherResult {
   frostRisk: boolean;
   frostAlert: { date: string; minTemp: number; hoursUntil: number } | null;
   fungalRisk: boolean;
+  intenseRainRisk: boolean;
+  intenseRainDays: string[];
+  hailRisk: boolean;
+  hailAlert: { date: string; precipitation: number; windSpeed: number } | null;
   tempDrops: string[];
   summary: {
     avgTempMax: number;
@@ -81,6 +85,26 @@ export async function fetchWeather(
   const last3 = days.slice(-10, -7);
   const fungalRisk = last3.some((d) => d.precipitation > 2);
 
+  // Intense rain: any forecast day with precipitation >= 20mm
+  const intenseRainDays = forecastDays
+    .filter((d) => d.precipitation >= 20)
+    .map((d) => d.date);
+  const intenseRainRisk = intenseRainDays.length > 0;
+
+  // Probable hail risk: strong convective profile proxy
+  // (high precipitation + strong winds in the same day)
+  const hailDay = forecastDays.find(
+    (d) => d.precipitation >= 8 && d.windSpeed >= 45
+  );
+  const hailRisk = !!hailDay;
+  const hailAlert = hailDay
+    ? {
+        date: hailDay.date,
+        precipitation: hailDay.precipitation,
+        windSpeed: hailDay.windSpeed,
+      }
+    : null;
+
   // Temp drops: days where max drops > 6°C vs previous day
   const tempDrops: string[] = [];
   for (let i = 1; i < days.length; i++) {
@@ -101,6 +125,10 @@ export async function fetchWeather(
     frostRisk,
     frostAlert,
     fungalRisk,
+    intenseRainRisk,
+    intenseRainDays,
+    hailRisk,
+    hailAlert,
     tempDrops,
     summary: {
       avgTempMax: Math.round(avgTempMax * 10) / 10,

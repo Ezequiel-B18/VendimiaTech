@@ -63,6 +63,16 @@ export async function mintOnBNB(params: MintParams): Promise<MintResult> {
     }
   }
 
+  // Si hay wallet del usuario, transferir el NFT a su address
+  if (params.walletAddress && ethers.isAddress(params.walletAddress)) {
+    const transferTx = await contract["safeTransferFrom(address,address,uint256)"](
+      signer.address,
+      params.walletAddress,
+      BigInt(tokenId)
+    );
+    await transferTx.wait();
+  }
+
   return {
     chain: "bnb",
     status: "success",
