@@ -78,8 +78,9 @@ export default function SatelliteMap({ imageBase64, bbox }: Props) {
   // Update overlay opacity when slider changes
   useEffect(() => {
     if (!overlayRef.current) return;
-    import("leaflet").then((L) => {
-      const overlay = overlayRef.current as L.ImageOverlay;
+    import("leaflet").then(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const overlay = overlayRef.current as any;
       if (overlay) {
         overlay.setOpacity(opacity / 100);
       }
@@ -90,8 +91,10 @@ export default function SatelliteMap({ imageBase64, bbox }: Props) {
   useEffect(() => {
     if (!leafletMapRef.current || !overlayRef.current) return;
     import("leaflet").then((L) => {
-      const map = leafletMapRef.current as L.Map;
-      const overlay = overlayRef.current as L.ImageOverlay;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const map = leafletMapRef.current as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const overlay = overlayRef.current as any;
 
       if (viewMode === "analysis") {
         if (!map.hasLayer(overlay)) {
@@ -99,7 +102,8 @@ export default function SatelliteMap({ imageBase64, bbox }: Props) {
           overlay.setOpacity(opacity / 100);
         }
         // Dim base tiles
-        map.eachLayer((layer) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.eachLayer((layer: any) => {
           if (layer instanceof L.TileLayer) {
             layer.setOpacity(0.6);
           }
@@ -109,7 +113,8 @@ export default function SatelliteMap({ imageBase64, bbox }: Props) {
         if (map.hasLayer(overlay)) {
           map.removeLayer(overlay);
         }
-        map.eachLayer((layer) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        map.eachLayer((layer: any) => {
           if (layer instanceof L.TileLayer) {
             layer.setOpacity(1);
           }

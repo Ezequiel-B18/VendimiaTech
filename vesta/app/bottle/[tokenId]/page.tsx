@@ -45,29 +45,6 @@ interface Review {
   comment: string;
 }
 
-const ESTADO_STYLES = {
-  bueno: {
-    dot: "bg-green-500",
-    text: "text-green-400",
-    border: "border-green-700/50",
-    bg: "bg-green-900/30",
-    label: "Bueno",
-  },
-  regular: {
-    dot: "bg-yellow-500",
-    text: "text-yellow-400",
-    border: "border-yellow-700/50",
-    bg: "bg-yellow-900/30",
-    label: "Regular",
-  },
-  malo: {
-    dot: "bg-red-500",
-    text: "text-red-400",
-    border: "border-red-700/50",
-    bg: "bg-red-900/30",
-    label: "Malo",
-  },
-};
 
 function StarRow({
   count,

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
-import { VestaLogo, SatelliteIcon, BrainIcon, BoltIcon, ShieldCheckIcon, EyeIcon, LinkIcon, MailIcon } from "@/components/icons";
+import { VestaLogo, SatelliteIcon, ShieldCheckIcon, EyeIcon, LinkIcon, MailIcon } from "@/components/icons";
 
 export default function HomePage() {
   const router = useRouter();
