@@ -40,6 +40,11 @@ interface Props {
 
 export default function StatusCard({ analysis, indices }: Props) {
   const cfg = STATE_CONFIG[analysis.estado_general] ?? STATE_CONFIG.regular;
+  const hasClimateData = !!(
+    analysis.alerta_climatica ||
+    analysis.correlacion_clima_imagen ||
+    (analysis.recomendaciones_climaticas && analysis.recomendaciones_climaticas.length > 0)
+  );
 
   return (
     <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-5`}>
@@ -86,6 +91,49 @@ export default function StatusCard({ analysis, indices }: Props) {
           </p>
         </div>
       </div>
+
+      {/* Climate-aware analysis section */}
+      {hasClimateData && (
+        <div className="mb-5 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
+            <span>🌦️</span> Análisis integrado clima + imagen
+          </p>
+
+          {analysis.alerta_climatica && (
+            <div className="mb-2">
+              <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
+                Alerta climática
+              </p>
+              <p className="text-sm text-blue-900">{analysis.alerta_climatica}</p>
+            </div>
+          )}
+
+          {analysis.correlacion_clima_imagen && (
+            <div className="mb-2">
+              <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
+                Correlación clima-imagen
+              </p>
+              <p className="text-sm text-blue-900">{analysis.correlacion_clima_imagen}</p>
+            </div>
+          )}
+
+          {analysis.recomendaciones_climaticas && analysis.recomendaciones_climaticas.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
+                Acciones recomendadas por clima
+              </p>
+              <ul className="space-y-1">
+                {analysis.recomendaciones_climaticas.map((rec, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-blue-900">
+                    <span className="text-blue-500 mt-0.5 shrink-0">→</span>
+                    <span>{rec}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recommendations */}
       {analysis.recomendaciones_generales.length > 0 && (

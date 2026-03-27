@@ -16,6 +16,7 @@ interface Props {
 
 async function connectBeexo(): Promise<WalletState> {
   const { XOConnectProvider } = await import("xo-connect");
+  // No config needed for connect/sign/send per official docs
   const xo = new XOConnectProvider();
   type EIP1193 = { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
   const p = xo as unknown as EIP1193;
