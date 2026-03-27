@@ -745,31 +745,66 @@ function DashboardContent() {
             />
           )}
 
-          {weather && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                Alertas activas
-              </p>
-              <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                weather.frostRisk ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-400"
-              }`}>
-                <span>🌡️</span>
-                <span>{weather.frostRisk ? "Riesgo de helada detectado" : "Sin riesgo de helada"}</span>
-              </div>
-              <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                weather.fungalRisk ? "bg-orange-50 text-orange-700" : "bg-gray-50 text-gray-400"
-              }`}>
-                <span>🍄</span>
-                <span>{weather.fungalRisk ? "Riesgo fúngico (lluvia reciente)" : "Sin riesgo fúngico"}</span>
-              </div>
-              {weather.tempDrops.length > 0 && (
-                <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700">
-                  <span>⚡</span>
-                  <span>Shock térmico el {weather.tempDrops[0]}</span>
+          {weather && (() => {
+            const today = new Date().toISOString().split("T")[0];
+            const futureTempDrops = weather.tempDrops.filter(d => d >= today);
+            const pastTempDrops = weather.tempDrops.filter(d => d < today);
+            const hasFutureAlerts = weather.frostRisk || futureTempDrops.length > 0;
+            const hasPastEvents = weather.fungalRisk || pastTempDrops.length > 0;
+
+            return (
+              <>
+                {/* ─── ALERTAS PRÓXIMAS (forecast only) ─── */}
+                <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    🚨 Alertas próximas (7 días)
+                  </p>
+                  {!hasFutureAlerts && (
+                    <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-green-50 text-green-600">
+                      <span>✅</span>
+                      <span>Sin alertas — pronóstico favorable</span>
+                    </div>
+                  )}
+                  {weather.frostRisk && weather.frostAlert && (
+                    <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-700">
+                      <span>🌡️</span>
+                      <span>Helada pronosticada: {weather.frostAlert.minTemp}°C el {weather.frostAlert.date} (en {weather.frostAlert.hoursUntil}hs)</span>
+                    </div>
+                  )}
+                  {futureTempDrops.map((date) => (
+                    <div key={date} className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700">
+                      <span>⚡</span>
+                      <span>Shock térmico pronosticado el {date}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* ─── EVENTOS RECIENTES (past context) ─── */}
+                {hasPastEvents && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      📋 Eventos recientes (contexto)
+                    </p>
+                    <p className="text-xs text-gray-400 mb-2">
+                      Eventos climáticos pasados que pueden explicar el estado actual del viñedo.
+                    </p>
+                    {weather.fungalRisk && (
+                      <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-orange-50 text-orange-600">
+                        <span>🍄</span>
+                        <span>Lluvia reciente (&gt;2mm) — monitorear riesgo fúngico</span>
+                      </div>
+                    )}
+                    {pastTempDrops.map((date) => (
+                      <div key={date} className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 text-gray-500">
+                        <span>⚡</span>
+                        <span>Shock térmico registrado el {date}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
