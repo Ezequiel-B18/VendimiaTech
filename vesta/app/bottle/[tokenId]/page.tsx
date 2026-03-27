@@ -16,6 +16,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { getWines, Wine } from "@/services/firebaseDb";
+import WalletButton, { WalletState } from "@/components/WalletButton";
 
 interface TokenData {
   tokenId: string;
@@ -234,7 +235,9 @@ function BottlePassportStatic({ tokenId }: { tokenId: string }) {
                     <p className="text-green-400 text-xs mt-0.5">{wine.variety} · {wine.year}</p>
                     {wine.certificateTokenId && (
                       <a
-                        href={`/bottle/${wine.certificateTokenId}`}
+                        href={wine.certificateExplorerUrl ?? `/bottle/${wine.certificateTokenId}`}
+                        target={wine.certificateExplorerUrl ? "_blank" : undefined}
+                        rel={wine.certificateExplorerUrl ? "noopener noreferrer" : undefined}
                         className="block mt-1.5 text-[10px] text-green-500/70 hover:text-green-400 transition-colors"
                       >
                         Ver certificado →
@@ -365,6 +368,9 @@ function BottlePassportBlockchain({ tokenId }: { tokenId: string }) {
   const [token, setToken] = useState<TokenData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [collectStep, setCollectStep] = useState<"idle" | "minting" | "success" | "error">("idle");
+  const [collectTxHash, setCollectTxHash] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<WalletState | null>(null);
 
   useEffect(() => {
     fetch(`/api/collection?tokenId=${tokenId}`)
@@ -401,6 +407,34 @@ function BottlePassportBlockchain({ tokenId }: { tokenId: string }) {
 
   const year = getYear(token.timestamp);
   const explorerUrl = `https://testnet.bscscan.com/token/${process.env.NEXT_PUBLIC_CONTRACT_BSC}?a=${tokenId}`;
+
+  const handleAddToCollection = async () => {
+    if (!token) return;
+    setCollectStep("minting");
+    try {
+      const res = await fetch("/api/certify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chain: "bnb",
+          bodega: token.bodega || "Bodega VESTA",
+          coordenadas: token.coordenadas,
+          imageHash: token.imageHash,
+          ndvi: token.ndvi,
+          ndre: token.ndre,
+          ndwi: token.ndwi,
+          climateEvent: token.climateEvent ?? "",
+          walletAddress: wallet?.address ?? "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al mintear");
+      setCollectTxHash(data.txHash);
+      setCollectStep("success");
+    } catch {
+      setCollectStep("error");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-10">
@@ -512,7 +546,39 @@ function BottlePassportBlockchain({ tokenId }: { tokenId: string }) {
           </a>
         </div>
         <div className="space-y-2 pt-2">
-          <button className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold rounded-xl py-3 text-sm transition-colors">Agregar a mi colección</button>
+          {collectStep === "idle" && !wallet && (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-xs text-gray-400">Conectá tu wallet para guardar este vino</p>
+              <WalletButton wallet={wallet} onConnect={setWallet} />
+            </div>
+          )}
+          {collectStep === "idle" && wallet && (
+            <button onClick={handleAddToCollection} className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold rounded-xl py-3 text-sm transition-colors">
+              Agregar a mi colección · BNB Chain
+            </button>
+          )}
+          {collectStep === "minting" && (
+            <div className="w-full bg-yellow-400 text-gray-900 font-semibold rounded-xl py-3 text-sm text-center">
+              Minteando NFT en BNB Chain...
+            </div>
+          )}
+          {collectStep === "success" && (
+            <div className="space-y-2">
+              <div className="w-full bg-green-600 text-white font-semibold rounded-xl py-3 text-sm text-center">
+                ✓ NFT minteado en BNB Chain
+              </div>
+              {collectTxHash && (
+                <a href={`https://testnet.bscscan.com/tx/${collectTxHash}`} target="_blank" rel="noopener noreferrer" className="block text-center text-xs text-yellow-400 hover:underline">
+                  Ver en BSCScan →
+                </a>
+              )}
+            </div>
+          )}
+          {collectStep === "error" && (
+            <button onClick={() => setCollectStep("idle")} className="w-full bg-red-500 text-white font-semibold rounded-xl py-3 text-sm">
+              Error — Reintentar
+            </button>
+          )}
           <button className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl py-3 text-sm transition-colors">Compartir este vino</button>
         </div>
         <div className="text-center pt-4">

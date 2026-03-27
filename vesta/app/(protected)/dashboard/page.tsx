@@ -57,6 +57,7 @@ interface TemporalResult {
 type Step = "idle" | "analyzing" | "done" | "error";
 
 interface CertifyResult {
+  chain: "bnb" | "rsk";
   txHash: string;
   tokenId: string;
   explorerUrl: string;
@@ -188,7 +189,7 @@ function DashboardContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chain: "bnb",
+          chain: "rsk",
           bodega: "Parcela VESTA",
           coordenadas: `${lat.toFixed(4)},${lon.toFixed(4)}`,
           imageHash: analysis.imageHash,
@@ -216,7 +217,7 @@ function DashboardContent() {
           bbox: bbox ?? [],
           coordenadas: `${((bbox?.[1] ?? 0) + (bbox?.[3] ?? 0)) / 2},${((bbox?.[0] ?? 0) + (bbox?.[2] ?? 0)) / 2}`,
           climateEvent: weather?.frostRisk ? "helada_detectada" : "",
-          chain: "bnb",
+          chain: "rsk",
         });
       }
 
@@ -525,10 +526,10 @@ function DashboardContent() {
           {/* Guardar certificado */}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <p className="text-sm font-semibold text-gray-700 mb-1">
-              Guardar el estado de hoy
+              Certificado de sostenibilidad
             </p>
             <p className="text-xs text-gray-400 mb-3">
-              Dejá registrado cómo está tu lote hoy. Útil para demostrar el origen de tu cosecha.
+              Registrá el estado de tu lote en la blockchain. Rootstock ancla el certificado a Bitcoin — ideal para exportación.
             </p>
 
             {certStep === "idle" && (
@@ -576,7 +577,7 @@ function DashboardContent() {
                     </div>
                     <div className="flex justify-between">
                       <span>Red</span>
-                      <span className="font-mono">BNB Chain</span>
+                      <span className="font-mono">{certResult.chain === "rsk" ? "Rootstock" : "BNB Chain"}</span>
                     </div>
                     <div className="flex justify-between gap-2">
                       <span className="shrink-0">Hash</span>

@@ -86,15 +86,22 @@ export default function EscritorioPage() {
   const handleGenerarQR = async (wine: Wine) => {
     setGeneratingQR(wine.id);
     const uid = auth.currentUser?.uid || "";
-    const id = `bodega-${uid}`;
-    const params = new URLSearchParams({
-      bodega: auth.currentUser?.displayName || auth.currentUser?.email?.split("@")[0] || "Bodega VESTA",
-      uid,
-      vino: wine.name,
-      cosecha: String(wine.year),
-      varietal: wine.variety,
-    });
-    const url = `https://vendimiatech-gamma.vercel.app/bottle/${id}?${params.toString()}`;
+    let url: string;
+    if (wine.certificateTokenId) {
+      // Vino certificado on-chain → QR lleva al pasaporte blockchain
+      url = `https://vendimiatech-gamma.vercel.app/bottle/${wine.certificateTokenId}`;
+    } else {
+      // Sin certificado → QR lleva a la página de bodega
+      const id = `bodega-${uid}`;
+      const params = new URLSearchParams({
+        bodega: auth.currentUser?.displayName || auth.currentUser?.email?.split("@")[0] || "Bodega VESTA",
+        uid,
+        vino: wine.name,
+        cosecha: String(wine.year),
+        varietal: wine.variety,
+      });
+      url = `https://vendimiatech-gamma.vercel.app/bottle/${id}?${params.toString()}`;
+    }
     const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 2 });
     setPartidaQR({ wine, qrDataUrl, url });
     setGeneratingQR(null);
@@ -129,12 +136,12 @@ export default function EscritorioPage() {
     }
   };
 
-  const handleLinkCertificate = async (wineId: string, certificateTokenId: string) => {
+  const handleLinkCertificate = async (wineId: string, certificateTokenId: string, explorerUrl?: string) => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
-    await linkWineToCertificate(uid, wineId, certificateTokenId);
+    await linkWineToCertificate(uid, wineId, certificateTokenId, explorerUrl);
     setWines((prev) =>
-      prev.map((w) => w.id === wineId ? { ...w, certificateTokenId } : w)
+      prev.map((w) => w.id === wineId ? { ...w, certificateTokenId, certificateExplorerUrl: explorerUrl } : w)
     );
     setLinkingWineId(null);
   };
@@ -316,7 +323,7 @@ export default function EscritorioPage() {
                            {certificates.map((cert) => (
                              <button
                                key={cert.id}
-                               onClick={() => handleLinkCertificate(w.id, cert.tokenId)}
+                               onClick={() => handleLinkCertificate(w.id, cert.tokenId, cert.explorerUrl)}
                                className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-emerald-500/15 hover:border-emerald-500/30 border border-transparent transition-all"
                              >
                                <p className="text-xs text-white font-medium">Token #{cert.tokenId}</p>

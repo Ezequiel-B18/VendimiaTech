@@ -26,6 +26,7 @@ export interface Wine {
   year: string;
   imageUrl: string;
   certificateTokenId?: string;
+  certificateExplorerUrl?: string;
   createdAt?: any;
 }
 
@@ -83,8 +84,11 @@ export async function updateWineImageUrl(uid: string, wineId: string, imageUrl: 
   await updateDoc(doc(db, "users", uid, "wines", wineId), { imageUrl });
 }
 
-export async function linkWineToCertificate(uid: string, wineId: string, certificateTokenId: string) {
-  await updateDoc(doc(db, "users", uid, "wines", wineId), { certificateTokenId });
+export async function linkWineToCertificate(uid: string, wineId: string, certificateTokenId: string, explorerUrl?: string) {
+  await updateDoc(doc(db, "users", uid, "wines", wineId), {
+    certificateTokenId,
+    ...(explorerUrl ? { certificateExplorerUrl: explorerUrl } : {}),
+  });
 }
 
 // ==============
