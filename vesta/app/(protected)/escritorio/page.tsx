@@ -89,7 +89,7 @@ export default function EscritorioPage() {
     let url: string;
     if (wine.certificateTokenId) {
       // Vino certificado on-chain → QR lleva al pasaporte blockchain
-      url = `https://vendimiatech-gamma.vercel.app/bottle/${wine.certificateTokenId}`;
+      url = `https://vesta-dashboard.vercel.app/bottle/${wine.certificateTokenId}`;
     } else {
       // Sin certificado → QR lleva a la página de bodega
       const id = `bodega-${uid}`;
@@ -100,7 +100,7 @@ export default function EscritorioPage() {
         cosecha: String(wine.year),
         varietal: wine.variety,
       });
-      url = `https://vendimiatech-gamma.vercel.app/bottle/${id}?${params.toString()}`;
+      url = `https://vesta-dashboard.vercel.app/bottle/${id}?${params.toString()}`;
     }
     const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 2 });
     setPartidaQR({ wine, qrDataUrl, url });
