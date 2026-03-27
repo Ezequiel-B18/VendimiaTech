@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { auth } from "@/lib/firebase";
-import { getParcels, getWines, Parcel, Wine, updateWineImageUrl } from "@/services/firebaseDb";
+import { getParcels, getWines, getCertificates, linkWineToCertificate, Parcel, Wine, Certificate, updateWineImageUrl } from "@/services/firebaseDb";
 import AddWineModal from "../../../components/AddWineModal";
 
 async function uploadToCloudinary(file: File): Promise<string> {
@@ -34,11 +34,13 @@ interface PartidaQR {
 export default function EscritorioPage() {
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [wines, setWines] = useState<Wine[]>([]);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [partidaQR, setPartidaQR] = useState<PartidaQR | null>(null);
   const [generatingQR, setGeneratingQR] = useState<string | null>(null);
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
+  const [linkingWineId, setLinkingWineId] = useState<string | null>(null);
   const qrPanelRef = useRef<HTMLDivElement>(null);
   const filePickerRef = useRef<HTMLInputElement>(null);
   const pendingUploadWineId = useRef<string | null>(null);
@@ -52,10 +54,14 @@ export default function EscritorioPage() {
     }
     setLoading(true);
     try {
-      const p = await getParcels(user.uid);
-      const w = await getWines(user.uid);
+      const [p, w, c] = await Promise.all([
+        getParcels(user.uid),
+        getWines(user.uid),
+        getCertificates(user.uid),
+      ]);
       setParcels(p);
       setWines(w);
+      setCertificates(c);
     } catch (err) {
       console.error(err);
     } finally {
@@ -70,24 +76,21 @@ export default function EscritorioPage() {
     return () => unsubscribe();
   }, []);
 
-  const handleAnalyzeParcel = (bbox: [number, number, number, number]) => {
-    const [lonMin, latMin, lonMax, latMax] = bbox;
-    router.push(`/dashboard?bbox=${lonMin},${latMin},${lonMax},${latMax}`);
+  const handleAnalyzeParcel = (p: Parcel) => {
+    const [lonMin, latMin, lonMax, latMax] = p.bbox;
+    router.push(`/dashboard?bbox=${lonMin},${latMin},${lonMax},${latMax}&nombre=${encodeURIComponent(p.name)}`);
   };
 
   const handleGenerarQR = async (wine: Wine) => {
     setGeneratingQR(wine.id);
-    const id = `partida-${wine.id}-${Date.now()}`;
+    const uid = auth.currentUser?.uid || "";
+    const id = `bodega-${uid}`;
     const params = new URLSearchParams({
+      bodega: auth.currentUser?.displayName || auth.currentUser?.email?.split("@")[0] || "Bodega VESTA",
+      uid,
       vino: wine.name,
       cosecha: String(wine.year),
       varietal: wine.variety,
-      bodega: auth.currentUser?.displayName || "Bodega VESTA",
-      coords: "-33.6650,-69.2350",
-      ndvi: "0.65",
-      ndre: "0.42",
-      ndwi: "0.18",
-      evento: "",
     });
     const url = `https://vendimiatech-gamma.vercel.app/bottle/${id}?${params.toString()}`;
     const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 2 });
@@ -122,6 +125,16 @@ export default function EscritorioPage() {
       setUploadingImageFor(null);
       pendingUploadWineId.current = null;
     }
+  };
+
+  const handleLinkCertificate = async (wineId: string, certificateTokenId: string) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    await linkWineToCertificate(uid, wineId, certificateTokenId);
+    setWines((prev) =>
+      prev.map((w) => w.id === wineId ? { ...w, certificateTokenId } : w)
+    );
+    setLinkingWineId(null);
   };
 
   const handleDescargarQR = () => {
@@ -196,7 +209,7 @@ export default function EscritorioPage() {
                        bbox: {p.bbox.map(n => n.toFixed(3)).join(',')}
                     </p>
                     <button 
-                      onClick={() => handleAnalyzeParcel(p.bbox)}
+                      onClick={() => handleAnalyzeParcel(p)}
                       className="w-full py-2 rounded-lg bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-all text-sm"
                     >
                       Diagnóstico IA →
@@ -271,6 +284,52 @@ export default function EscritorioPage() {
                     <div className="p-4 border-t border-white/5">
                        <h3 className="font-bold text-white leading-tight">{w.name}</h3>
                        <p className="text-emerald-400 text-sm font-medium mt-1">{w.variety} • {w.year}</p>
+
+                       {/* Certificado vinculado */}
+                       {w.certificateTokenId ? (
+                         <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-1">
+                           <span>✓</span>
+                           <span>Cert. #{w.certificateTokenId}</span>
+                           <button
+                             onClick={() => setLinkingWineId(w.id)}
+                             className="ml-auto text-white/30 hover:text-white/60 transition-colors"
+                           >
+                             ✎
+                           </button>
+                         </div>
+                       ) : (
+                         <button
+                           onClick={() => setLinkingWineId(w.id)}
+                           disabled={certificates.length === 0}
+                           className="mt-2 w-full py-1.5 rounded-lg border border-dashed border-white/20 text-white/40 hover:border-emerald-500/40 hover:text-emerald-400 transition-all text-xs disabled:opacity-30"
+                         >
+                           {certificates.length === 0 ? "Sin certificados aún" : "+ Vincular certificado"}
+                         </button>
+                       )}
+
+                       {/* Selector de certificado */}
+                       {linkingWineId === w.id && (
+                         <div className="mt-2 bg-slate-800 border border-white/10 rounded-xl p-3 space-y-1.5">
+                           <p className="text-[10px] text-white/40 uppercase tracking-wide mb-2">Seleccioná un análisis</p>
+                           {certificates.map((cert) => (
+                             <button
+                               key={cert.id}
+                               onClick={() => handleLinkCertificate(w.id, cert.tokenId)}
+                               className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-emerald-500/15 hover:border-emerald-500/30 border border-transparent transition-all"
+                             >
+                               <p className="text-xs text-white font-medium">Token #{cert.tokenId}</p>
+                               <p className="text-[10px] text-white/40 font-mono truncate">{cert.txHash.slice(0, 20)}…</p>
+                             </button>
+                           ))}
+                           <button
+                             onClick={() => setLinkingWineId(null)}
+                             className="w-full text-xs text-white/30 hover:text-white/50 pt-1 transition-colors"
+                           >
+                             Cancelar
+                           </button>
+                         </div>
+                       )}
+
                        {uploadingImageFor === w.id ? (
                          <p className="mt-3 text-xs text-emerald-400 animate-pulse">Subiendo imagen...</p>
                        ) : (
