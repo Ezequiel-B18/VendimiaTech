@@ -28,6 +28,10 @@ export async function POST(req: NextRequest) {
       frostRisk: weather.frostRisk,
       frostAlert: weather.frostAlert,
       fungalRisk: weather.fungalRisk,
+      intenseRainRisk: weather.intenseRainRisk,
+      intenseRainDays: weather.intenseRainDays,
+      hailRisk: weather.hailRisk,
+      hailAlert: weather.hailAlert,
       tempDrops: weather.tempDrops,
     });
   } catch (err) {

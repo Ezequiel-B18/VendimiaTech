@@ -63,6 +63,7 @@ interface CertifyResult {
 
 type CertifyStep = "idle" | "minting" | "success" | "error";
 type TemporalStep = "idle" | "loading" | "done" | "error";
+type NotifyStep = "idle" | "saved" | "sending" | "sent" | "error";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -89,6 +90,36 @@ function DashboardContent() {
   const [temporalResult, setTemporalResult] = useState<TemporalResult | null>(null);
   const [temporalError, setTemporalError] = useState<string | null>(null);
   const [comparisonDate, setComparisonDate] = useState<string>("");
+  const [alertEmail, setAlertEmail] = useState<string>("");
+  const [alertsEnabled, setAlertsEnabled] = useState<boolean>(false);
+  const [notifyStep, setNotifyStep] = useState<NotifyStep>("idle");
+  const [notifyError, setNotifyError] = useState<string | null>(null);
+
+  const hasActiveAlerts = !!(
+    weather && (
+      weather.frostRisk ||
+      weather.fungalRisk ||
+      weather.intenseRainRisk ||
+      weather.hailRisk ||
+      weather.tempDrops.length > 0
+    )
+  );
+
+  const alertSignature = weather
+    ? JSON.stringify({
+        frost: weather.frostRisk
+          ? `${weather.frostAlert?.date ?? "na"}-${weather.frostAlert?.minTemp ?? "na"}`
+          : "none",
+        fungal: weather.fungalRisk,
+        rain: weather.intenseRainDays,
+        hail: weather.hailRisk
+          ? `${weather.hailAlert?.date ?? "na"}-${weather.hailAlert?.precipitation ?? "na"}-${weather.hailAlert?.windSpeed ?? "na"}`
+          : "none",
+        drops: weather.tempDrops,
+      })
+    : "";
+
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
   useEffect(() => {
     if (!bbox) return;
@@ -121,6 +152,83 @@ function DashboardContent() {
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bboxParam]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedEmail = window.localStorage.getItem("vesta_alert_email") ?? "";
+    const savedEnabled = window.localStorage.getItem("vesta_alert_enabled") === "1";
+    setAlertEmail(savedEmail);
+    setAlertsEnabled(savedEnabled);
+  }, []);
+
+  const sendAlertEmail = async () => {
+    if (!weather || !alertEmail) return;
+
+    setNotifyStep("sending");
+    setNotifyError(null);
+
+    try {
+      const res = await fetch("/api/alert/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: alertEmail,
+          bbox,
+          frostRisk: weather.frostRisk,
+          frostAlert: weather.frostAlert,
+          fungalRisk: weather.fungalRisk,
+          intenseRainRisk: weather.intenseRainRisk,
+          intenseRainDays: weather.intenseRainDays,
+          hailRisk: weather.hailRisk,
+          hailAlert: weather.hailAlert,
+          tempDrops: weather.tempDrops,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo enviar el email");
+
+      if (typeof window !== "undefined") {
+        const dedupeKey = `vesta_alert_signature:${bboxParam ?? "plot"}:${alertEmail}`;
+        window.localStorage.setItem(dedupeKey, alertSignature);
+      }
+
+      setNotifyStep("sent");
+    } catch (err) {
+      setNotifyStep("error");
+      setNotifyError(err instanceof Error ? err.message : "Error desconocido");
+    }
+  };
+
+  useEffect(() => {
+    if (!alertsEnabled || !alertEmail || !isValidEmail(alertEmail)) return;
+    if (!hasActiveAlerts || !alertSignature) return;
+    if (typeof window === "undefined") return;
+
+    const dedupeKey = `vesta_alert_signature:${bboxParam ?? "plot"}:${alertEmail}`;
+    const lastSent = window.localStorage.getItem(dedupeKey);
+
+    if (lastSent === alertSignature) return;
+    void sendAlertEmail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertsEnabled, alertEmail, alertSignature, bboxParam, hasActiveAlerts]);
+
+  const handleSaveEmailAlerts = () => {
+    if (!isValidEmail(alertEmail)) {
+      setNotifyStep("error");
+      setNotifyError("Ingresá un email válido para recibir alertas.");
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("vesta_alert_email", alertEmail);
+      window.localStorage.setItem("vesta_alert_enabled", "1");
+    }
+
+    setAlertsEnabled(true);
+    setNotifyError(null);
+    setNotifyStep("saved");
+  };
 
   const handleTemporalAnalysis = async () => {
     if (!bbox || !comparisonDate) return;
@@ -643,38 +751,91 @@ function DashboardContent() {
                 <MushroomIcon className="w-4 h-4 shrink-0" />
                 <span>{weather.fungalRisk ? "Riesgo fúngico (lluvia reciente)" : "Sin riesgo fúngico"}</span>
               </div>
+                <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                  weather.intenseRainRisk ? "bg-indigo-50 text-indigo-700" : "bg-gray-50 text-gray-400"
+                }`}>
+                  <span className="shrink-0">Lluvia</span>
+                  <span>
+                    {weather.intenseRainRisk
+                      ? `Lluvia intensa pronosticada (${weather.intenseRainDays[0]})`
+                      : "Sin lluvia intensa"}
+                  </span>
+                </div>
+                <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                  weather.hailRisk ? "bg-purple-50 text-purple-700" : "bg-gray-50 text-gray-400"
+                }`}>
+                  <span className="shrink-0">Granizo</span>
+                  <span>
+                    {weather.hailRisk && weather.hailAlert
+                      ? `Riesgo probable de granizo (${weather.hailAlert.date})`
+                      : "Sin riesgo probable de granizo"}
+                  </span>
+                </div>
               {weather.tempDrops.length > 0 && (
                 <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700">
                   <BoltIcon className="w-4 h-4 shrink-0" />
                   <span>Shock térmico el {weather.tempDrops[0]}</span>
                 </div>
-
-                {/* ─── EVENTOS RECIENTES (past context) ─── */}
-                {hasPastEvents && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                      📋 Eventos recientes (contexto)
-                    </p>
-                    <p className="text-xs text-gray-400 mb-2">
-                      Eventos climáticos pasados que pueden explicar el estado actual del viñedo.
-                    </p>
-                    {weather.fungalRisk && (
-                      <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-orange-50 text-orange-600">
-                        <span>🍄</span>
-                        <span>Lluvia reciente (&gt;2mm) — monitorear riesgo fúngico</span>
-                      </div>
-                    )}
-                    {pastTempDrops.map((date) => (
-                      <div key={date} className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 text-gray-500">
-                        <span>⚡</span>
-                        <span>Shock térmico registrado el {date}</span>
-                      </div>
-                    ))}
-                  </div>
                 )}
-              </>
-            );
-          })()}
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Notificaciones por email
+              </p>
+              <p className="text-xs text-gray-500">
+                Recibí alertas automáticas de tu parcela cuando haya riesgo de helada, hongos o shock térmico.
+              </p>
+
+              <input
+                type="email"
+                value={alertEmail}
+                onChange={(e) => {
+                  setAlertEmail(e.target.value);
+                  if (notifyStep === "error") {
+                    setNotifyStep("idle");
+                    setNotifyError(null);
+                  }
+                }}
+                placeholder="agronomo@bodega.com"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveEmailAlerts}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors"
+                >
+                  {alertsEnabled ? "Actualizar email" : "Activar alertas"}
+                </button>
+                <button
+                  onClick={() => void sendAlertEmail()}
+                  disabled={!isValidEmail(alertEmail) || notifyStep === "sending"}
+                  className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 disabled:text-gray-400 disabled:border-gray-200"
+                >
+                  {notifyStep === "sending" ? "Enviando..." : "Enviar ahora"}
+                </button>
+              </div>
+
+              {alertsEnabled && (
+                <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-2">
+                  Alertas activadas para: {alertEmail}
+                </p>
+              )}
+
+              {notifyStep === "saved" && (
+                <p className="text-xs text-emerald-700">Configuración guardada. Te avisaremos por email cuando aparezca un nuevo evento.</p>
+              )}
+
+              {notifyStep === "sent" && (
+                <p className="text-xs text-emerald-700">Email de alerta enviado correctamente.</p>
+              )}
+
+              {notifyStep === "error" && notifyError && (
+                <p className="text-xs text-red-600">{notifyError}</p>
+              )}
+            </div>
         </div>
       </div>
     </div>
