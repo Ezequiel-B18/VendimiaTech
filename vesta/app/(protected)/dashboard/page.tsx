@@ -203,10 +203,10 @@ function DashboardContent() {
         <div className="text-center">
           <p className="text-gray-500 mb-4">No hay coordenadas seleccionadas.</p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/escritorio")}
             className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm"
           >
-            Volver al mapa
+            Volver al escritorio
           </button>
         </div>
       </div>
@@ -259,10 +259,10 @@ function DashboardContent() {
           <p className="text-red-500 font-semibold text-lg mb-2">Error en el análisis</p>
           <p className="text-gray-500 text-sm mb-4">{error}</p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/escritorio")}
             className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm"
           >
-            Volver al mapa
+            Volver al escritorio
           </button>
         </div>
       </div>
@@ -285,10 +285,10 @@ function DashboardContent() {
       <header className="bg-gray-950 border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/")}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
+            onClick={() => router.push("/escritorio")}
+            className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm border border-white/5 shadow-sm"
           >
-            ←
+            ← Volver
           </button>
           <div className="w-7 h-7 bg-green-500 rounded-md flex items-center justify-center text-sm">
             🛰️
