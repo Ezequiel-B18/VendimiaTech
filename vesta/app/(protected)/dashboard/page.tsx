@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import QRCode from "qrcode";
 import AlertBanner from "@/components/AlertBanner";
 import StatusCard from "@/components/StatusCard";
 import WeatherChart from "@/components/WeatherChart";
@@ -58,6 +59,14 @@ function DashboardContent() {
   const [selectedChain, setSelectedChain] = useState<"bnb" | "rsk">("bnb");
   const [signingMode, setSigningMode] = useState<"server" | "wallet">("server");
 
+  // Partida de vinos
+  const [nombreVino, setNombreVino] = useState("");
+  const [fechaCosecha, setFechaCosecha] = useState("");
+  const [varietal, setVarietal] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [partidaUrl, setPartidaUrl] = useState<string | null>(null);
+  const qrImgRef = useRef<HTMLImageElement>(null);
+
   useEffect(() => {
     if (!bbox) return;
 
@@ -65,7 +74,6 @@ function DashboardContent() {
       try {
         setStep("satellite");
 
-        // 1. Satellite analysis
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -80,7 +88,6 @@ function DashboardContent() {
 
         setStep("weather");
 
-        // 2. Weather (center of bbox)
         const lat = (bbox[1] + bbox[3]) / 2;
         const lon = (bbox[0] + bbox[2]) / 2;
         const weatherRes = await fetch("/api/weather", {
@@ -106,6 +113,43 @@ function DashboardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bboxParam]);
 
+  const handleGenerarQR = async () => {
+    const id = certResult?.tokenId ?? `partida-${Date.now()}`;
+
+    const params = new URLSearchParams({
+      vino: nombreVino,
+      cosecha: fechaCosecha,
+      varietal: varietal,
+      bodega: "Parcela VESTA",
+      coords: bbox
+        ? `${((bbox[1] + bbox[3]) / 2).toFixed(4)},${((bbox[0] + bbox[2]) / 2).toFixed(4)}`
+        : "-33.6650,-69.2350",
+      ndvi: String(analysis?.indices.ndvi ?? 0.65),
+      ndre: String(analysis?.indices.ndre ?? 0.42),
+      ndwi: String(analysis?.indices.ndwi ?? 0.18),
+      evento: weather?.frostRisk ? "helada_detectada" : "",
+      txHash: certResult?.txHash ?? "",
+      tokenId: certResult?.tokenId ?? "",
+    });
+
+    const url = `https://vendimiatech-gamma.vercel.app/bottle/${id}?${params.toString()}`;
+    setPartidaUrl(url);
+    const dataUrl = await QRCode.toDataURL(url, { width: 200, margin: 2 });
+    setQrDataUrl(dataUrl);
+  };
+
+  const handleCopiarLink = () => {
+    if (partidaUrl) navigator.clipboard.writeText(partidaUrl);
+  };
+
+  const handleDescargarQR = () => {
+    if (!qrDataUrl) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `qr-partida-${nombreVino || "vino"}.png`;
+    a.click();
+  };
+
   const handleCertify = async () => {
     if (!analysis) return;
     if (signingMode === "wallet" && !wallet) {
@@ -128,12 +172,10 @@ function DashboardContent() {
       };
 
       if (signingMode === "wallet" && wallet) {
-        // Client-side: user signs with their own wallet
         const { mintWithWallet } = await import("@/lib/blockchain/clientSign");
         const data = await mintWithWallet(wallet.provider, selectedChain, mintParams);
         setCertResult(data);
       } else {
-        // Server-side: deployer key signs
         const res = await fetch("/api/certify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -171,7 +213,6 @@ function DashboardContent() {
     );
   }
 
-  // Loading states
   if (step !== "done" && step !== "error") {
     const steps = [
       { key: "satellite", label: "Descargando imagen Sentinel-2..." },
@@ -232,7 +273,6 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Frost alert banner — full width, top */}
       {frostAlert && (
         <AlertBanner
           minTemp={frostAlert.minTemp}
@@ -257,9 +297,7 @@ function DashboardContent() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-600 hidden sm:block">
-            {analysis?.timestamp
-              ? new Date(analysis.timestamp).toLocaleString("es-AR")
-              : ""}
+            {analysis?.timestamp ? new Date(analysis.timestamp).toLocaleString("es-AR") : ""}
           </span>
           <WalletButton wallet={wallet} onConnect={setWallet} />
         </div>
@@ -267,32 +305,101 @@ function DashboardContent() {
 
       {/* Three-column layout */}
       <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[40%_35%_25%] gap-5">
+
         {/* LEFT: Satellite map */}
         <div className="flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
             Imagen satelital
           </h2>
-          {analysis && (
-            <SatelliteMap
-              imageBase64={analysis.imageBase64}
-              bbox={bbox}
-            />
-          )}
+          {analysis && <SatelliteMap imageBase64={analysis.imageBase64} bbox={bbox} />}
         </div>
 
-        {/* CENTER: Status + recommendations */}
+        {/* CENTER: Status + QR + Certify */}
         <div className="flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
             Estado del viñedo
           </h2>
           {analysis && (
-            <StatusCard
-              analysis={analysis.geminiAnalysis}
-              indices={analysis.indices}
-            />
+            <StatusCard analysis={analysis.geminiAnalysis} indices={analysis.indices} />
           )}
 
-          {/* Certify — chain selector */}
+          {/* ─── CREAR PARTIDA DE VINOS ─── */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Crear partida de vinos
+            </p>
+
+            <div className="space-y-2 mb-3">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Nombre del vino</label>
+                <input
+                  type="text"
+                  placeholder="ej: Malbec Reserva"
+                  value={nombreVino}
+                  onChange={(e) => setNombreVino(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Año de cosecha</label>
+                <input
+                  type="number"
+                  placeholder="ej: 2026"
+                  min="1990"
+                  max="2099"
+                  value={fechaCosecha}
+                  onChange={(e) => setFechaCosecha(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Varietal (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="ej: Malbec 100%"
+                  value={varietal}
+                  onChange={(e) => setVarietal(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-400"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleGenerarQR}
+              disabled={!nombreVino}
+              className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold rounded-lg py-2.5 text-sm transition-colors disabled:opacity-40"
+            >
+              Generar QR de partida
+            </button>
+
+            {qrDataUrl && partidaUrl && (
+              <div className="mt-4 space-y-3">
+                <div className="flex justify-center">
+                  <img ref={qrImgRef} src={qrDataUrl} alt="QR partida" className="rounded-lg border border-gray-100" />
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-gray-400 mb-1">Link del pasaporte</p>
+                  <p className="text-xs font-mono text-gray-700 break-all">{partidaUrl}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCopiarLink}
+                    className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg py-2 text-xs font-medium transition-colors"
+                  >
+                    Copiar link
+                  </button>
+                  <button
+                    onClick={handleDescargarQR}
+                    className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg py-2 text-xs font-medium transition-colors"
+                  >
+                    Descargar QR
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ─── CERTIFICAR ON-CHAIN ─── */}
           <div className="bg-gray-900 rounded-xl border border-white/10 p-4">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
               Certificar on-chain
@@ -348,7 +455,6 @@ function DashboardContent() {
               })}
             </div>
 
-            {/* Wallet required warning */}
             {signingMode === "wallet" && !wallet && (
               <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-3 py-2 mb-3">
                 <span>⚠️</span>
@@ -362,7 +468,6 @@ function DashboardContent() {
               </div>
             )}
 
-            {/* Hash preview */}
             <div className="flex justify-between text-xs mb-3">
               <span className="text-gray-500">Hash imagen</span>
               <span className="text-gray-400 font-mono truncate max-w-[140px]">
@@ -405,18 +510,12 @@ function DashboardContent() {
                     </span>
                   </div>
                 </div>
-                <a
-                  href={certResult.explorerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-center text-xs text-green-400 hover:underline"
-                >
+                <a href={certResult.explorerUrl} target="_blank" rel="noopener noreferrer"
+                  className="block text-center text-xs text-green-400 hover:underline">
                   Ver en explorer →
                 </a>
-                <a
-                  href={`/bottle/${certResult.tokenId}`}
-                  className="block text-center text-xs text-blue-400 hover:underline"
-                >
+                <a href={`/bottle/${certResult.tokenId}`}
+                  className="block text-center text-xs text-blue-400 hover:underline">
                   Ver pasaporte de la botella →
                 </a>
               </div>
@@ -425,10 +524,7 @@ function DashboardContent() {
             {certStep === "error" && (
               <div className="space-y-2">
                 <p className="text-xs text-red-400">{certError}</p>
-                <button
-                  onClick={() => setCertStep("idle")}
-                  className="text-xs text-gray-500 hover:text-gray-300"
-                >
+                <button onClick={() => setCertStep("idle")} className="text-xs text-gray-500 hover:text-gray-300">
                   Reintentar
                 </button>
               </div>
@@ -450,45 +546,27 @@ function DashboardContent() {
             />
           )}
 
-          {/* Weather risks */}
           {weather && (
             <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                 Alertas activas
               </p>
-              <div
-                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                  weather.frostRisk
-                    ? "bg-red-50 text-red-700"
-                    : "bg-gray-50 text-gray-400"
-                }`}
-              >
+              <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                weather.frostRisk ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-400"
+              }`}>
                 <span>🌡️</span>
-                <span>
-                  {weather.frostRisk ? "Riesgo de helada detectado" : "Sin riesgo de helada"}
-                </span>
+                <span>{weather.frostRisk ? "Riesgo de helada detectado" : "Sin riesgo de helada"}</span>
               </div>
-              <div
-                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                  weather.fungalRisk
-                    ? "bg-orange-50 text-orange-700"
-                    : "bg-gray-50 text-gray-400"
-                }`}
-              >
+              <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                weather.fungalRisk ? "bg-orange-50 text-orange-700" : "bg-gray-50 text-gray-400"
+              }`}>
                 <span>🍄</span>
-                <span>
-                  {weather.fungalRisk
-                    ? "Riesgo fúngico (lluvia reciente)"
-                    : "Sin riesgo fúngico"}
-                </span>
+                <span>{weather.fungalRisk ? "Riesgo fúngico (lluvia reciente)" : "Sin riesgo fúngico"}</span>
               </div>
               {weather.tempDrops.length > 0 && (
                 <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700">
                   <span>⚡</span>
-                  <span>
-                    Shock térmico el{" "}
-                    {weather.tempDrops[0]}
-                  </span>
+                  <span>Shock térmico el {weather.tempDrops[0]}</span>
                 </div>
               )}
             </div>
