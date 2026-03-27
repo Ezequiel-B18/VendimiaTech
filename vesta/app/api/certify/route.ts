@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mintOnBNB } from "@/lib/blockchain/bnb";
+import { mintOnRSK } from "@/lib/blockchain/rsk";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
+      chain,
       bodega,
       coordenadas,
       imageHash,
@@ -14,6 +16,7 @@ export async function POST(req: NextRequest) {
       climateEvent,
       walletAddress,
     } = body as {
+      chain: "bnb" | "rsk";
       bodega: string;
       coordenadas: string;
       imageHash: string;
@@ -31,7 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await mintOnBNB({
+    const params = {
       bodega,
       coordenadas,
       imageHash,
@@ -40,7 +43,10 @@ export async function POST(req: NextRequest) {
       ndwi,
       climateEvent: climateEvent ?? "",
       walletAddress: walletAddress ?? "",
-    });
+    };
+
+    const result =
+      chain === "rsk" ? await mintOnRSK(params) : await mintOnBNB(params);
 
     return NextResponse.json(result);
   } catch (err) {

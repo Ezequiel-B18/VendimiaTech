@@ -6,6 +6,7 @@ import { useEffect, useState, Suspense } from "react";
 import AlertBanner from "@/components/AlertBanner";
 import StatusCard from "@/components/StatusCard";
 import WeatherChart from "@/components/WeatherChart";
+import WalletButton, { WalletState } from "@/components/WalletButton";
 import type { GeminiAnalysis } from "@/lib/gemini";
 import type { WeatherResult } from "@/lib/weather";
 
@@ -53,6 +54,9 @@ function DashboardContent() {
   const [certStep, setCertStep] = useState<CertifyStep>("idle");
   const [certResult, setCertResult] = useState<CertifyResult | null>(null);
   const [certError, setCertError] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<WalletState | null>(null);
+  const [selectedChain, setSelectedChain] = useState<"bnb" | "rsk">("bnb");
+  const [signingMode, setSigningMode] = useState<"server" | "wallet">("server");
 
   useEffect(() => {
     if (!bbox) return;
@@ -104,28 +108,46 @@ function DashboardContent() {
 
   const handleCertify = async () => {
     if (!analysis) return;
+    if (signingMode === "wallet" && !wallet) {
+      setCertError("Conectá tu wallet primero.");
+      return;
+    }
     setCertStep("minting");
     setCertError(null);
     try {
       const lat = bbox ? (bbox[1] + bbox[3]) / 2 : 0;
       const lon = bbox ? (bbox[0] + bbox[2]) / 2 : 0;
-      const res = await fetch("/api/certify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bodega: "Parcela VESTA",
-          coordenadas: `${lat.toFixed(4)},${lon.toFixed(4)}`,
-          imageHash: analysis.imageHash,
-          ndvi: analysis.indices.ndvi,
-          ndre: analysis.indices.ndre,
-          ndwi: analysis.indices.ndwi,
-          climateEvent: weather?.frostRisk ? "helada_detectada" : "",
-          walletAddress: "",
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al mintear");
-      setCertResult(data);
+      const mintParams = {
+        bodega: "Parcela VESTA",
+        coordenadas: `${lat.toFixed(4)},${lon.toFixed(4)}`,
+        imageHash: analysis.imageHash,
+        ndvi: analysis.indices.ndvi,
+        ndre: analysis.indices.ndre,
+        ndwi: analysis.indices.ndwi,
+        climateEvent: weather?.frostRisk ? "helada_detectada" : "",
+      };
+
+      if (signingMode === "wallet" && wallet) {
+        // Client-side: user signs with their own wallet
+        const { mintWithWallet } = await import("@/lib/blockchain/clientSign");
+        const data = await mintWithWallet(wallet.provider, selectedChain, mintParams);
+        setCertResult(data);
+      } else {
+        // Server-side: deployer key signs
+        const res = await fetch("/api/certify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chain: selectedChain,
+            ...mintParams,
+            walletAddress: wallet?.address ?? "",
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Error al mintear");
+        setCertResult(data);
+      }
+
       setCertStep("success");
     } catch (err) {
       setCertError(err instanceof Error ? err.message : "Error desconocido");
@@ -220,23 +242,26 @@ function DashboardContent() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <header className="bg-gray-950 border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/")}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-500 hover:text-gray-300 transition-colors"
           >
             ←
           </button>
           <div className="w-7 h-7 bg-green-500 rounded-md flex items-center justify-center text-sm">
             🛰️
           </div>
-          <span className="font-bold text-gray-900">VESTA</span>
+          <span className="font-bold text-white">VESTA</span>
         </div>
-        <div className="text-xs text-gray-400">
-          {analysis?.timestamp
-            ? new Date(analysis.timestamp).toLocaleString("es-AR")
-            : ""}
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-600 hidden sm:block">
+            {analysis?.timestamp
+              ? new Date(analysis.timestamp).toLocaleString("es-AR")
+              : ""}
+          </span>
+          <WalletButton wallet={wallet} onConnect={setWallet} />
         </div>
       </header>
 
@@ -267,57 +292,115 @@ function DashboardContent() {
             />
           )}
 
-          {/* Certify on BNB */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center text-xs font-bold text-yellow-900">B</div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Certificar en BNB Chain
-              </p>
+          {/* Certify — chain selector */}
+          <div className="bg-gray-900 rounded-xl border border-white/10 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Certificar on-chain
+            </p>
+
+            {/* Chain selector */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(["bnb", "rsk"] as const).map((chain) => {
+                const cfg = {
+                  bnb: { label: "BNB Chain", icon: "🟡", sub: "BSC Testnet" },
+                  rsk: { label: "Rootstock", icon: "🟠", sub: "RSK Testnet" },
+                };
+                return (
+                  <button
+                    key={chain}
+                    onClick={() => { setSelectedChain(chain); setCertStep("idle"); }}
+                    className={`rounded-lg p-2.5 text-left border transition-all ${
+                      selectedChain === chain
+                        ? "border-green-500 bg-green-900/20 text-white"
+                        : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
+                    }`}
+                  >
+                    <div className="text-lg mb-0.5">{cfg[chain].icon}</div>
+                    <p className="text-xs font-semibold">{cfg[chain].label}</p>
+                    <p className="text-[10px] text-gray-500">{cfg[chain].sub}</p>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="space-y-1 mb-3">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Hash imagen</span>
-                <span className="text-gray-600 font-mono truncate max-w-[160px]">
-                  {analysis?.imageHash?.slice(0, 16)}...
-                </span>
+            {/* Signing mode selector */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(["server", "wallet"] as const).map((mode) => {
+                const cfg = {
+                  server: { label: "⚡ Rápido", sub: "Servidor firma", detail: "Sin wallet · Demo" },
+                  wallet: { label: "🔒 Mi Wallet", sub: "Vos firmás", detail: "MetaMask / Beexo" },
+                };
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => { setSigningMode(mode); setCertStep("idle"); }}
+                    className={`rounded-lg p-2.5 text-left border transition-all ${
+                      signingMode === mode
+                        ? "border-blue-500 bg-blue-900/20 text-white"
+                        : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold">{cfg[mode].label}</p>
+                    <p className="text-[10px] text-gray-400">{cfg[mode].sub}</p>
+                    <p className="text-[10px] text-gray-600">{cfg[mode].detail}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Wallet required warning */}
+            {signingMode === "wallet" && !wallet && (
+              <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-3 py-2 mb-3">
+                <span>⚠️</span>
+                <span>Conectá tu wallet con el botón del header</span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Red</span>
-                <span className="text-gray-600">BSC Testnet</span>
+            )}
+            {signingMode === "wallet" && wallet && (
+              <div className="flex items-center gap-2 text-xs text-green-400 bg-green-900/20 border border-green-700/30 rounded-lg px-3 py-2 mb-3">
+                <span>✓</span>
+                <span>{wallet.address.slice(0, 8)}… conectada vía {wallet.via === "beexo" ? "Beexo" : "MetaMask"}</span>
               </div>
+            )}
+
+            {/* Hash preview */}
+            <div className="flex justify-between text-xs mb-3">
+              <span className="text-gray-500">Hash imagen</span>
+              <span className="text-gray-400 font-mono truncate max-w-[140px]">
+                {analysis?.imageHash?.slice(0, 14)}...
+              </span>
             </div>
 
             {certStep === "idle" && (
               <button
                 onClick={handleCertify}
                 disabled={!analysis}
-                className="w-full bg-yellow-400 hover:bg-yellow-300 text-yellow-900 font-semibold rounded-lg py-2.5 text-sm transition-colors disabled:opacity-40"
+                className="w-full bg-green-500 hover:bg-green-400 disabled:bg-green-900 text-white font-semibold rounded-lg py-2.5 text-sm transition-colors"
               >
-                Mintear NFT certificado →
+                Mintear NFT en {selectedChain === "bnb" ? "BNB Chain" : "Rootstock"} →
               </button>
             )}
 
             {certStep === "minting" && (
-              <div className="flex items-center justify-center gap-2 py-2.5 text-sm text-gray-500">
-                <svg className="animate-spin h-4 w-4 text-yellow-500" fill="none" viewBox="0 0 24 24">
+              <div className="flex items-center justify-center gap-2 py-2.5 text-sm text-gray-400">
+                <svg className="animate-spin h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Minteando en BSC Testnet...
+                {signingMode === "wallet"
+                  ? "Esperando firma en tu wallet..."
+                  : `Minteando en ${selectedChain === "bnb" ? "BSC Testnet" : "RSK Testnet"}...`}
               </div>
             )}
 
             {certStep === "success" && certResult && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
-                  <span>✓</span> NFT minteado — Token #{certResult.tokenId}
+                <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                  <span>✓</span> Token #{certResult.tokenId} minteado
                 </div>
-                <div className="bg-green-50 rounded-lg p-2.5 space-y-1">
+                <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-2.5">
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-400">Tx Hash</span>
-                    <span className="font-mono text-gray-600 truncate max-w-[150px]">
+                    <span className="text-gray-500">Tx Hash</span>
+                    <span className="font-mono text-gray-300 truncate max-w-[150px]">
                       {certResult.txHash.slice(0, 18)}...
                     </span>
                   </div>
@@ -326,19 +409,25 @@ function DashboardContent() {
                   href={certResult.explorerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-center text-xs text-yellow-600 hover:underline"
+                  className="block text-center text-xs text-green-400 hover:underline"
                 >
-                  Ver en BSCScan →
+                  Ver en explorer →
+                </a>
+                <a
+                  href={`/bottle/${certResult.tokenId}`}
+                  className="block text-center text-xs text-blue-400 hover:underline"
+                >
+                  Ver pasaporte de la botella →
                 </a>
               </div>
             )}
 
             {certStep === "error" && (
               <div className="space-y-2">
-                <p className="text-xs text-red-500">{certError}</p>
+                <p className="text-xs text-red-400">{certError}</p>
                 <button
                   onClick={() => setCertStep("idle")}
-                  className="text-xs text-gray-400 hover:text-gray-600"
+                  className="text-xs text-gray-500 hover:text-gray-300"
                 >
                   Reintentar
                 </button>
