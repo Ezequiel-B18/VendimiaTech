@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { SnowflakeIcon, GrapeIcon, MapIcon, ThermometerIcon, RainIcon, SunIcon } from "@/components/icons";
 
 interface TokenData {
   tokenId: string;
@@ -77,11 +78,11 @@ export default function BottlePassportPage() {
       <div className="relative bg-gradient-to-b from-green-900 to-gray-950 px-6 pt-12 pb-10 text-center">
         {token.isLimitedEdition && (
           <div className="inline-flex items-center gap-1.5 bg-red-600/80 text-red-100 text-xs font-semibold px-3 py-1 rounded-full mb-4">
-            ❄️ Edición Limitada — Cosecha Histórica
+            <SnowflakeIcon className="w-3.5 h-3.5" /> Edición Limitada — Cosecha Histórica
           </div>
         )}
-        <div className="w-24 h-24 bg-green-800 rounded-full flex items-center justify-center text-5xl mx-auto mb-4 shadow-lg shadow-green-900/50">
-          🍇
+        <div className="w-24 h-24 bg-green-800 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/50">
+          <GrapeIcon className="w-12 h-12 text-green-300" />
         </div>
         <h1 className="text-2xl font-bold leading-tight">{token.bodega}</h1>
         <p className="text-green-400 mt-1 text-sm">
@@ -96,7 +97,9 @@ export default function BottlePassportPage() {
         {/* LIMITED EDITION BADGE */}
         {token.isLimitedEdition && token.climateEvent && (
           <div className="bg-red-900/40 border border-red-700/50 rounded-2xl p-4 text-center">
-            <p className="text-lg font-bold text-red-300">❄️ Cosecha Histórica</p>
+            <p className="text-lg font-bold text-red-300 flex items-center justify-center gap-2">
+              <SnowflakeIcon className="w-5 h-5" /> Cosecha Histórica
+            </p>
             <p className="text-sm text-red-200 mt-1">
               Esta botella fue certificada durante un evento climático excepcional
             </p>
@@ -113,7 +116,7 @@ export default function BottlePassportPage() {
         <div className="bg-gray-900 rounded-2xl p-4">
           <div className="bg-green-900/30 border border-green-800/40 rounded-xl h-36 flex items-center justify-center mb-3">
             <div className="text-center">
-              <span className="text-4xl">🗺️</span>
+              <MapIcon className="w-10 h-10 text-green-400 mx-auto" />
               <p className="text-xs text-gray-400 mt-2">
                 {token.coordenadas}
               </p>
@@ -133,12 +136,12 @@ export default function BottlePassportPage() {
           </p>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { icon: "🌡️", label: "Temp. media", value: "24°C / 11°C" },
-              { icon: "🌧️", label: "Precipit.", value: "11.9 mm" },
-              { icon: "☀️", label: "Días de sol", value: "28 días" },
+              { icon: <ThermometerIcon className="w-6 h-6 text-gray-300 mx-auto" />, label: "Temp. media", value: "24°C / 11°C" },
+              { icon: <RainIcon className="w-6 h-6 text-gray-300 mx-auto" />, label: "Precipit.", value: "11.9 mm" },
+              { icon: <SunIcon className="w-6 h-6 text-gray-300 mx-auto" />, label: "Días de sol", value: "28 días" },
             ].map((item) => (
               <div key={item.label} className="bg-gray-800 rounded-xl p-3 text-center">
-                <div className="text-2xl mb-1">{item.icon}</div>
+                <div className="mb-1">{item.icon}</div>
                 <p className="text-xs text-white font-semibold">{item.value}</p>
                 <p className="text-[10px] text-gray-500 mt-0.5">{item.label}</p>
               </div>

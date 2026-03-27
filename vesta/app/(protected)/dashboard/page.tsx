@@ -11,6 +11,8 @@ import WalletButton, { WalletState } from "@/components/WalletButton";
 import type { GeminiAnalysis, GeminiTemporalAnalysis } from "@/lib/gemini";
 import type { WeatherResult } from "@/lib/weather";
 import type { PixelDistribution } from "@/lib/sentinel";
+import { AlertTriangleIcon, ThermometerIcon, MushroomIcon, BoltIcon, TrendUpIcon, ArrowRightIcon, TrendDownIcon, CalendarIcon, LockIcon, VestaLogo } from "@/components/icons";
+import Link from "next/link";
 
 const SatelliteMap = dynamic(() => import("@/components/SatelliteMap"), {
   ssr: false,
@@ -300,9 +302,9 @@ function DashboardContent() {
 
   // Temporal analysis evolution config
   const evolutionConfig = temporalResult?.evolution ? {
-    mejora: { icon: "📈", color: "text-green-600", bg: "bg-green-50", border: "border-green-200", label: "Mejora detectada" },
-    estable: { icon: "➡️", color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", label: "Sin cambios significativos" },
-    deterioro: { icon: "📉", color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Deterioro detectado" },
+    mejora: { icon: <TrendUpIcon className="w-5 h-5" />, color: "text-green-600", bg: "bg-green-50", border: "border-green-200", label: "Mejora detectada" },
+    estable: { icon: <ArrowRightIcon className="w-5 h-5" />, color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", label: "Sin cambios significativos" },
+    deterioro: { icon: <TrendDownIcon className="w-5 h-5" />, color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Deterioro detectado" },
   }[temporalResult.evolution.cambio_general] : null;
 
   return (
@@ -318,16 +320,16 @@ function DashboardContent() {
       {/* Header */}
       <header className="bg-gray-950 border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button
+           <button
             onClick={() => router.push("/escritorio")}
             className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm border border-white/5 shadow-sm"
           >
             ← Volver
           </button>
-          <div className="w-7 h-7 bg-green-500 rounded-md flex items-center justify-center text-sm">
-            🛰️
-          </div>
-          <span className="font-bold text-white">VESTA</span>
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <VestaLogo className="w-5 h-6 text-emerald-400" />
+            <span className="font-bold text-white">VESTA</span>
+          </Link>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-600 hidden sm:block">
@@ -477,8 +479,8 @@ function DashboardContent() {
           {/* ─── CERTIFICAR ON-CHAIN ─── */}
           {/* Temporal comparison trigger */}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              📅 Comparar con fecha anterior
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <CalendarIcon className="w-3.5 h-3.5" /> Comparar con fecha anterior
             </p>
             <div className="flex gap-2 mb-2">
               <input
@@ -505,7 +507,7 @@ function DashboardContent() {
           {temporalStep === "done" && temporalResult && evolutionConfig && (
             <div className={`rounded-xl border ${evolutionConfig.border} ${evolutionConfig.bg} p-4`}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xl">{evolutionConfig.icon}</span>
+                <span className={evolutionConfig.color}>{evolutionConfig.icon}</span>
                 <p className={`text-sm font-bold ${evolutionConfig.color}`}>{evolutionConfig.label}</p>
               </div>
 
@@ -608,8 +610,8 @@ function DashboardContent() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               {(["bnb", "rsk"] as const).map((chain) => {
                 const cfg = {
-                  bnb: { label: "BNB Chain", icon: "🟡", sub: "BSC Testnet" },
-                  rsk: { label: "Rootstock", icon: "🟠", sub: "RSK Testnet" },
+                  bnb: { label: "BNB Chain", icon: <span className="w-4 h-4 rounded-full bg-yellow-400 inline-block" />, sub: "BSC Testnet" },
+                  rsk: { label: "Rootstock", icon: <span className="w-4 h-4 rounded-full bg-orange-400 inline-block" />, sub: "RSK Testnet" },
                 };
                 return (
                   <button
@@ -621,7 +623,7 @@ function DashboardContent() {
                         : "border-white/10 bg-white/5 text-gray-400 hover:border-white/20"
                     }`}
                   >
-                    <div className="text-lg mb-0.5">{cfg[chain].icon}</div>
+                    <div className="mb-0.5">{cfg[chain].icon}</div>
                     <p className="text-xs font-semibold">{cfg[chain].label}</p>
                     <p className="text-[10px] text-gray-500">{cfg[chain].sub}</p>
                   </button>
@@ -633,8 +635,8 @@ function DashboardContent() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               {(["server", "wallet"] as const).map((mode) => {
                 const cfg = {
-                  server: { label: "⚡ Rápido", sub: "Servidor firma", detail: "Sin wallet · Demo" },
-                  wallet: { label: "🔒 Mi Wallet", sub: "Vos firmás", detail: "MetaMask / Beexo" },
+                  server: { label: <span className="flex items-center gap-1"><BoltIcon className="w-3.5 h-3.5" /> Rápido</span>, sub: "Servidor firma", detail: "Sin wallet · Demo" },
+                  wallet: { label: <span className="flex items-center gap-1"><LockIcon className="w-3.5 h-3.5" /> Mi Wallet</span>, sub: "Vos firmás", detail: "MetaMask / Beexo" },
                 };
                 return (
                   <button
@@ -656,7 +658,7 @@ function DashboardContent() {
 
             {signingMode === "wallet" && !wallet && (
               <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-3 py-2 mb-3">
-                <span>⚠️</span>
+                <AlertTriangleIcon className="w-4 h-4 shrink-0" />
                 <span>Conectá tu wallet con el botón del header</span>
               </div>
             )}
@@ -753,18 +755,18 @@ function DashboardContent() {
               <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
                 weather.frostRisk ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-400"
               }`}>
-                <span>🌡️</span>
+                <ThermometerIcon className="w-4 h-4 shrink-0" />
                 <span>{weather.frostRisk ? "Riesgo de helada detectado" : "Sin riesgo de helada"}</span>
               </div>
               <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
                 weather.fungalRisk ? "bg-orange-50 text-orange-700" : "bg-gray-50 text-gray-400"
               }`}>
-                <span>🍄</span>
+                <MushroomIcon className="w-4 h-4 shrink-0" />
                 <span>{weather.fungalRisk ? "Riesgo fúngico (lluvia reciente)" : "Sin riesgo fúngico"}</span>
               </div>
               {weather.tempDrops.length > 0 && (
                 <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700">
-                  <span>⚡</span>
+                  <BoltIcon className="w-4 h-4 shrink-0" />
                   <span>Shock térmico el {weather.tempDrops[0]}</span>
                 </div>
               )}
