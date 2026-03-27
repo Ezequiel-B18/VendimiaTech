@@ -4,6 +4,8 @@ import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { VestaLogo } from "@/components/icons";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -29,13 +31,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(14,165,233,0.14),transparent_30%),linear-gradient(to_bottom,#052e16,#0a0f1d_45%,#020617)] text-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#062a1e] via-[#0a1e2e] to-[#0a0b1e] text-white p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
-          <div className="w-16 h-16 mx-auto bg-gradient-to-br from-green-400 to-emerald-600 rounded-2xl shadow-lg shadow-emerald-900/40 flex items-center justify-center text-3xl mb-4">
-            🛰️
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Acceso Privado VESTA</h1>
+          <Link href="/" className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity mb-4">
+            <VestaLogo className="w-8 h-9 text-emerald-400" />
+            <span className="font-extrabold text-3xl tracking-tight text-white">VESTA</span>
+          </Link>
+          <h1 className="text-xl font-bold tracking-tight">Acceso Privado</h1>
           <p className="text-emerald-300/80 mt-2 text-sm">Plataforma exclusiva para productores asociados</p>
         </div>
 

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { SproutIcon, MapIcon, WineIcon, TrophyIcon, DiamondIcon, GrapeIcon, SnowflakeIcon, GlobeIcon, VestaLogo } from "@/components/icons";
+import React from "react";
 
 interface NFTToken {
   tokenId: string;
@@ -17,7 +19,7 @@ const BADGES = [
   {
     id: "iniciado",
     name: "Iniciado del Vino",
-    icon: "🌱",
+    icon: <SproutIcon className="w-7 h-7" />,
     threshold: 1,
     type: "bodegas",
     description: "Tu primer terroir certificado",
@@ -26,7 +28,7 @@ const BADGES = [
   {
     id: "explorador",
     name: "Explorador del Valle de Uco",
-    icon: "🗺️",
+    icon: <MapIcon className="w-7 h-7" />,
     threshold: 5,
     type: "bodegas",
     description: "5 bodegas distintas en tu colección",
@@ -35,7 +37,7 @@ const BADGES = [
   {
     id: "sommelier",
     name: "Sommelier Digital",
-    icon: "🍷",
+    icon: <WineIcon className="w-7 h-7" />,
     threshold: 10,
     type: "bodegas",
     description: "10 bodegas distintas — nivel experto",
@@ -44,7 +46,7 @@ const BADGES = [
   {
     id: "fiel",
     name: "Fiel a la Bodega",
-    icon: "🏆",
+    icon: <TrophyIcon className="w-7 h-7" />,
     threshold: 3,
     type: "same_bodega",
     description: "3 cosechas de la misma bodega",
@@ -53,7 +55,7 @@ const BADGES = [
   {
     id: "elite",
     name: "Coleccionista Élite",
-    icon: "💎",
+    icon: <DiamondIcon className="w-7 h-7" />,
     threshold: 1,
     type: "top10",
     description: "Top 10 del ranking global",
@@ -163,8 +165,10 @@ export default function CollectionPage() {
       <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-gray-400 hover:text-gray-200 transition-colors">←</Link>
-          <div className="w-7 h-7 bg-green-500 rounded-md flex items-center justify-center text-sm">🛰️</div>
-          <span className="font-bold">TerroirCollect</span>
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <VestaLogo className="w-5 h-6 text-emerald-400" />
+            <span className="font-bold text-white">VESTA</span>
+          </Link>
         </div>
         <span className="text-xs text-gray-500">VESTA</span>
       </header>
@@ -205,7 +209,7 @@ export default function CollectionPage() {
 
           {nextBadge && (
             <div className="bg-gray-900 rounded-xl p-3 mb-4 flex items-center gap-3">
-              <span className="text-2xl opacity-40">{nextBadge.icon}</span>
+              <span className="opacity-40">{nextBadge.icon}</span>
               <div className="flex-1">
                 <p className="text-xs text-gray-400">
                   Próximo badge:{" "}
@@ -240,7 +244,7 @@ export default function CollectionPage() {
                     : "bg-gray-900 border-white/5 opacity-50"
                 }`}
               >
-                <div className="text-3xl mb-2">{badge.icon}</div>
+                <div className="flex justify-center mb-2">{badge.icon}</div>
                 <p className="text-xs font-semibold leading-tight">{badge.name}</p>
                 <p className="text-[10px] text-white/60 mt-1">{badge.description}</p>
                 {badge.unlocked && (
@@ -264,7 +268,7 @@ export default function CollectionPage() {
 
           {tokens.length === 0 ? (
             <div className="text-center py-12 text-gray-600">
-              <p className="text-4xl mb-3">🍇</p>
+              <GrapeIcon className="w-10 h-10 text-gray-600 mx-auto mb-3" />
               <p className="text-sm">No tenés NFTs todavía.</p>
               <p className="text-xs mt-1">
                 Analizá tu primera parcela y certificala on-chain.
@@ -288,12 +292,12 @@ export default function CollectionPage() {
                     className="bg-gray-900 border border-white/5 rounded-xl p-4 hover:border-green-500/40 transition-colors group"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className="w-10 h-10 bg-green-900 rounded-lg flex items-center justify-center text-xl">
-                        🍇
+                      <div className="w-10 h-10 bg-green-900 rounded-lg flex items-center justify-center">
+                        <GrapeIcon className="w-5 h-5 text-green-400" />
                       </div>
                       {token.isLimitedEdition && (
-                        <span className="text-[10px] bg-red-900/60 text-red-300 border border-red-700/40 px-2 py-0.5 rounded-full font-semibold">
-                          ❄️ EDICIÓN LIMITADA
+                        <span className="text-[10px] bg-red-900/60 text-red-300 border border-red-700/40 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                          <SnowflakeIcon className="w-3 h-3" /> EDICIÓN LIMITADA
                         </span>
                       )}
                     </div>
@@ -321,7 +325,9 @@ export default function CollectionPage() {
 
         {/* Ranking */}
         <div>
-          <h2 className="font-semibold text-lg mb-4">Ranking global 🌍</h2>
+          <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
+            Ranking global <GlobeIcon className="w-4 h-4 text-gray-500" />
+          </h2>
           <div className="bg-gray-900 rounded-xl overflow-hidden">
             {RANKING.map((entry, i) => (
               <div

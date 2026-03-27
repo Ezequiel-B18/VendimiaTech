@@ -1,6 +1,7 @@
 "use client";
 
 import type { GeminiAnalysis } from "@/lib/gemini";
+import { LeafIcon, AlertTriangleIcon, SirenIcon, CloudSunIcon, BoltIcon, CalendarIcon, CheckCircleIcon } from "@/components/icons";
 
 const STATE_CONFIG = {
   bueno: {
@@ -26,11 +27,11 @@ const STATE_CONFIG = {
   },
 };
 
-const URGENCY_LABELS: Record<string, string> = {
-  inmediata: "⚡ Inmediata",
-  esta_semana: "📅 Esta semana",
-  este_mes: "📆 Este mes",
-  sin_urgencia: "✅ Sin urgencia",
+const URGENCY_LABELS: Record<string, React.ReactNode> = {
+  inmediata: <span className="flex items-center gap-1"><BoltIcon className="w-3.5 h-3.5" /> Inmediata</span>,
+  esta_semana: <span className="flex items-center gap-1"><CalendarIcon className="w-3.5 h-3.5" /> Esta semana</span>,
+  este_mes: <span className="flex items-center gap-1"><CalendarIcon className="w-3.5 h-3.5" /> Este mes</span>,
+  sin_urgencia: <span className="flex items-center gap-1"><CheckCircleIcon className="w-3.5 h-3.5" /> Sin urgencia</span>,
 };
 
 interface Props {
@@ -46,18 +47,18 @@ export default function StatusCard({ analysis, indices }: Props) {
     (analysis.recomendaciones_climaticas && analysis.recomendaciones_climaticas.length > 0)
   );
 
+  const statusIcon = analysis.estado_general === "bueno"
+    ? <LeafIcon className="w-6 h-6 text-white" />
+    : analysis.estado_general === "regular"
+    ? <AlertTriangleIcon className="w-6 h-6 text-white" />
+    : <SirenIcon className="w-6 h-6 text-white" />;
+
   return (
     <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-5`}>
       {/* Main status */}
       <div className="flex items-center gap-4 mb-5">
         <div className={`w-16 h-16 rounded-full ${cfg.color} shadow-lg flex items-center justify-center`}>
-          <span className="text-2xl">
-            {analysis.estado_general === "bueno"
-              ? "🌿"
-              : analysis.estado_general === "regular"
-              ? "⚠️"
-              : "🚨"}
-          </span>
+          {statusIcon}
         </div>
         <div>
           <p className={`text-xl font-bold ${cfg.text}`}>{cfg.label}</p>
@@ -96,7 +97,7 @@ export default function StatusCard({ analysis, indices }: Props) {
       {hasClimateData && (
         <div className="mb-5 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
-            <span>🌦️</span> Análisis integrado clima + imagen
+            <CloudSunIcon className="w-4 h-4" /> Análisis integrado clima + imagen
           </p>
 
           {analysis.alerta_climatica && (
