@@ -1,8 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+
+import { useEffect, useState, Suspense } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { db } from "@/lib/firebase";
 import { SnowflakeIcon, GrapeIcon, MapIcon, ThermometerIcon, RainIcon, SunIcon } from "@/components/icons";
+import {
+  addDoc,
+  collection,
+  query,
+  orderBy,
+  where,
+  limit,
+  getDocs,
+  serverTimestamp,
+} from "firebase/firestore";
 
 interface TokenData {
   tokenId: string;
@@ -17,7 +29,6 @@ interface TokenData {
   isLimitedEdition: boolean;
 }
 
-// Derive some display data from on-chain fields
 function getYear(timestamp: number) {
   return new Date(timestamp * 1000).getFullYear() || 2026;
 }
@@ -27,16 +38,376 @@ function formatHash(hash: string) {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
-export default function BottlePassportPage() {
-  const params = useParams();
-  const tokenId = params?.tokenId as string;
+interface Review {
+  stars: number;
+  comment: string;
+}
 
+const ESTADO_STYLES = {
+  bueno: {
+    dot: "bg-green-500",
+    text: "text-green-400",
+    border: "border-green-700/50",
+    bg: "bg-green-900/30",
+    label: "Bueno",
+  },
+  regular: {
+    dot: "bg-yellow-500",
+    text: "text-yellow-400",
+    border: "border-yellow-700/50",
+    bg: "bg-yellow-900/30",
+    label: "Regular",
+  },
+  malo: {
+    dot: "bg-red-500",
+    text: "text-red-400",
+    border: "border-red-700/50",
+    bg: "bg-red-900/30",
+    label: "Malo",
+  },
+};
+
+function StarRow({
+  count,
+  size = "text-lg",
+}: {
+  count: number;
+  size?: string;
+}) {
+  return (
+    <span className={`${size} leading-none`}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <span key={i} className={i < count ? "text-yellow-400" : "text-gray-600"}>
+          {i < count ? "★" : "☆"}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// ─── VISTA ESTÁTICA para partidas sin token blockchain ───────────────────────
+function BottlePassportStatic({ tokenId }: { tokenId: string }) {
+  const searchParams = useSearchParams();
+
+  const cosecha = searchParams.get("cosecha") || "2026";
+  const varietal = searchParams.get("varietal") || "Malbec";
+  const bodega = searchParams.get("bodega") || "Bodega Certificada";
+  const coords = searchParams.get("coords") || "-33.6650,-69.2350";
+  const ndvi = parseFloat(searchParams.get("ndvi") || "0.65");
+  const ndre = parseFloat(searchParams.get("ndre") || "0.42");
+  const ndwi = parseFloat(searchParams.get("ndwi") || "0.18");
+  const evento = searchParams.get("evento") || "";
+  const txHash = searchParams.get("txHash") || "";
+  const tokenIdBSC = searchParams.get("tokenId") || "";
+  const estado = searchParams.get("estado") || "";
+  const recomendacion = searchParams.get("recomendacion") || "";
+
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [avgStars, setAvgStars] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [hoverStar, setHoverStar] = useState(0);
+  const [selectedStar, setSelectedStar] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setAlreadyReviewed(!!localStorage.getItem(`vesta_review_${tokenId}`));
+    }
+    fetchReviews();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenId]);
+
+  async function fetchReviews() {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, "reviews"),
+          where("tokenId", "==", tokenId),
+          orderBy("createdAt", "desc"),
+          limit(50)
+        )
+      );
+      const all = snap.docs.map((d) => d.data() as Review & { createdAt: unknown });
+      setReviewCount(all.length);
+      if (all.length > 0) {
+        const avg = all.reduce((s, r) => s + r.stars, 0) / all.length;
+        setAvgStars(Math.round(avg * 10) / 10);
+      }
+      setReviews(all.slice(0, 3));
+    } catch {
+      // silently fail — no reviews shown
+    }
+  }
+
+  async function handleSubmitReview() {
+    if (!selectedStar || submitting) return;
+    setSubmitting(true);
+    try {
+      await addDoc(collection(db, "reviews"), {
+        tokenId,
+        stars: selectedStar,
+        comment: comment.slice(0, 200).trim(),
+        createdAt: serverTimestamp(),
+      });
+      localStorage.setItem(`vesta_review_${tokenId}`, "1");
+      setAlreadyReviewed(true);
+      setSubmitted(true);
+      fetchReviews();
+    } catch {
+      // silently fail
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const estadoStyle = ESTADO_STYLES[estado as keyof typeof ESTADO_STYLES];
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white pb-10">
+
+      {/* 1. HERO COMPACTO */}
+      <div className="relative bg-gradient-to-b from-green-900 to-gray-950 px-6 pt-10 pb-8 text-center">
+        {evento && (
+          <div className="inline-flex items-center gap-1.5 bg-red-600/80 text-red-100 text-xs font-semibold px-3 py-1 rounded-full mb-3">
+            ❄️ Edición Limitada — Cosecha Histórica
+          </div>
+        )}
+        <h1 className="text-2xl font-bold leading-tight">{bodega}</h1>
+        <p className="text-green-400 mt-1 text-sm">{varietal} · Cosecha {cosecha}</p>
+        <p className="text-gray-500 text-xs mt-1">Verificado por VESTA</p>
+      </div>
+
+      <div className="max-w-md mx-auto px-4 space-y-4 mt-2">
+
+        {/* 2. SELLO BODEGA CERTIFICADA ON-CHAIN */}
+        <div className="bg-green-900/40 border border-green-700/50 rounded-2xl p-4 text-center">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-base">✓</div>
+            <p className="text-lg font-bold text-green-300">Bodega Certificada on-chain</p>
+          </div>
+          <p className="text-sm text-green-200">
+            Esta partida proviene de un viñedo verificado satelitalmente por VESTA.
+            El origen, la salud vegetal y las condiciones climáticas fueron auditadas con IA agronómica.
+          </p>
+          <div className="mt-3 bg-green-900/40 rounded-lg px-3 py-2 text-xs text-green-300 font-mono">
+            Certificado VESTA · Satellite + IA + Blockchain
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-white/50 px-1">
+            <span>Red: BSC Testnet</span>
+            {tokenIdBSC && <span>· Token #{tokenIdBSC}</span>}
+            {txHash && <span>· {formatHash(txHash)}</span>}
+            {!tokenIdBSC && !txHash && <span>· Partida: {tokenId.slice(0, 20)}</span>}
+          </div>
+        </div>
+
+        {/* EVENTO CLIMÁTICO (si existe, va pegado al sello) */}
+        {evento && (
+          <div className="bg-red-900/40 border border-red-700/50 rounded-2xl p-4 text-center">
+            <p className="text-lg font-bold text-red-300">❄️ Cosecha Histórica</p>
+            <p className="text-sm text-red-200 mt-1">
+              Esta botella fue certificada durante un evento climático excepcional
+            </p>
+            <div className="mt-3 bg-red-900/40 rounded-lg px-3 py-2 text-xs text-red-300 font-mono">
+              {evento}
+            </div>
+          </div>
+        )}
+
+        {/* 3. UBICACIÓN COMPACTA */}
+        <div className="bg-gray-900 rounded-2xl p-4">
+          <p className="text-sm text-gray-400">📍 {coords} · Valle de Uco, Mendoza</p>
+          <p className="text-sm text-gray-300 mt-2 leading-snug">
+            Las uvas de esta botella crecieron aquí.{" "}
+            <span className="text-green-400">El satélite confirmó vegetación sana.</span>
+          </p>
+        </div>
+
+        {/* 4. ESTADO DEL VIÑEDO (solo si existe en params) */}
+        {estado && estadoStyle && (
+          <div className={`${estadoStyle.bg} border ${estadoStyle.border} rounded-2xl p-4`}>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Estado del viñedo al momento de la cosecha
+            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-2.5 h-2.5 rounded-full ${estadoStyle.dot}`} />
+              <span className={`font-semibold ${estadoStyle.text}`}>{estadoStyle.label}</span>
+            </div>
+            {recomendacion && (
+              <p className="text-sm text-gray-300">{recomendacion}</p>
+            )}
+          </div>
+        )}
+
+        {/* 5. PROMEDIO ESTRELLAS */}
+        <div className="bg-gray-900 rounded-2xl p-4 flex items-center gap-3">
+          <StarRow count={Math.round(avgStars ?? 0)} size="text-xl" />
+          {avgStars !== null ? (
+            <span className="text-white font-semibold text-lg">{avgStars.toFixed(1)}</span>
+          ) : (
+            <span className="text-gray-500 text-sm">Sin reviews aún</span>
+          )}
+          {reviewCount > 0 && (
+            <span className="text-gray-500 text-sm">
+              · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}
+            </span>
+          )}
+        </div>
+
+        {/* 6. FORMULARIO REVIEW */}
+        {submitted ? (
+          <div className="bg-green-900/30 border border-green-700/50 rounded-2xl p-5 text-center">
+            <p className="text-green-400 font-semibold">¡Gracias por tu review!</p>
+          </div>
+        ) : alreadyReviewed ? (
+          <div className="bg-gray-900 rounded-2xl p-4 text-center">
+            <p className="text-gray-500 text-sm">Ya dejaste tu review para esta partida.</p>
+          </div>
+        ) : (
+          <div className="bg-gray-900 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Dejar una review
+            </p>
+            <div className="flex gap-1 mb-3">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <button
+                  key={s}
+                  onMouseEnter={() => setHoverStar(s)}
+                  onMouseLeave={() => setHoverStar(0)}
+                  onClick={() => setSelectedStar(s)}
+                  className="text-3xl transition-transform hover:scale-110 leading-none"
+                >
+                  <span className={(s <= (hoverStar || selectedStar)) ? "text-yellow-400" : "text-gray-600"}>
+                    {s <= (hoverStar || selectedStar) ? "★" : "☆"}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value.slice(0, 200))}
+              placeholder="Contá tu experiencia con este vino... (opcional)"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-green-600 transition-colors"
+              rows={3}
+            />
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-gray-600">{comment.length}/200</span>
+              <button
+                onClick={handleSubmitReview}
+                disabled={!selectedStar || submitting}
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                {submitting ? "Publicando..." : "Publicar review"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 7. CTA */}
+        <div className="space-y-2">
+          <button className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold rounded-xl py-3 text-sm transition-colors">
+            Agregar a mi colección
+          </button>
+          <button className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl py-3 text-sm transition-colors">
+            Compartir este vino
+          </button>
+        </div>
+
+        {/* 8. ÚLTIMAS 3 REVIEWS */}
+        {reviews.length > 0 && (
+          <div className="bg-gray-900 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Últimas reviews
+            </p>
+            <div className="space-y-3">
+              {reviews.map((r, i) => (
+                <div
+                  key={i}
+                  className="border-b border-gray-800 last:border-0 pb-3 last:pb-0"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <StarRow count={r.stars} size="text-sm" />
+                    <span className="text-xs text-gray-500">Usuario verificado</span>
+                  </div>
+                  {r.comment && (
+                    <p className="text-sm text-gray-300">{r.comment}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 9. DATOS DE LA TEMPORADA */}
+        <div className="bg-gray-900 rounded-2xl p-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Datos de la temporada
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { icon: "🌡️", label: "Temp. media", value: "24°C / 11°C" },
+              { icon: "🌧️", label: "Precipit.", value: "11.9 mm" },
+              { icon: "☀️", label: "Días de sol", value: "28 días" },
+            ].map((item) => (
+              <div key={item.label} className="bg-gray-800 rounded-xl p-3 text-center">
+                <div className="text-2xl mb-1">{item.icon}</div>
+                <p className="text-xs text-white font-semibold">{item.value}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 10. SALUD DEL VIÑEDO */}
+        <div className="bg-gray-900 rounded-2xl p-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Salud del viñedo al momento de la certificación
+          </p>
+          <div className="space-y-2">
+            {[
+              { label: "Vigor vegetativo", value: ndvi, color: "bg-green-500" },
+              { label: "Salud de la planta", value: ndre, color: "bg-emerald-500" },
+              { label: "Humedad foliar", value: ndwi, color: "bg-blue-500" },
+            ].map((item) => (
+              <div key={item.label}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-400">{item.label}</span>
+                  <span className="text-white font-medium">
+                    {(item.value * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${item.color} rounded-full`}
+                    style={{ width: `${Math.min(item.value * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* FOOTER */}
+        <div className="text-center pt-4">
+          <p className="text-xs text-gray-600">
+            Certificado por{" "}
+            <span className="text-green-500 font-semibold">VESTA</span> · Satellite + IA + Blockchain
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── VISTA BLOCKCHAIN para tokens reales ─────────────────────────────────────
+function BottlePassportBlockchain({ tokenId }: { tokenId: string }) {
   const [token, setToken] = useState<TokenData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!tokenId) return;
     fetch(`/api/collection?tokenId=${tokenId}`)
       .then((r) => r.json())
       .then((data) => {
@@ -74,7 +445,6 @@ export default function BottlePassportPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-10">
-      {/* HERO */}
       <div className="relative bg-gradient-to-b from-green-900 to-gray-950 px-6 pt-12 pb-10 text-center">
         {token.isLimitedEdition && (
           <div className="inline-flex items-center gap-1.5 bg-red-600/80 text-red-100 text-xs font-semibold px-3 py-1 rounded-full mb-4">
@@ -85,16 +455,11 @@ export default function BottlePassportPage() {
           <GrapeIcon className="w-12 h-12 text-green-300" />
         </div>
         <h1 className="text-2xl font-bold leading-tight">{token.bodega}</h1>
-        <p className="text-green-400 mt-1 text-sm">
-          Malbec · Cosecha {year}
-        </p>
-        <p className="text-gray-500 text-xs mt-1">
-          Token #{token.tokenId} · BSC Testnet
-        </p>
+        <p className="text-green-400 mt-1 text-sm">Malbec · Cosecha {year}</p>
+        <p className="text-gray-500 text-xs mt-1">Token #{token.tokenId} · BSC Testnet</p>
       </div>
 
       <div className="max-w-md mx-auto px-4 space-y-4 mt-2">
-        {/* LIMITED EDITION BADGE */}
         {token.isLimitedEdition && token.climateEvent && (
           <div className="bg-red-900/40 border border-red-700/50 rounded-2xl p-4 text-center">
             <p className="text-lg font-bold text-red-300 flex items-center justify-center gap-2">
@@ -111,8 +476,6 @@ export default function BottlePassportPage() {
             </p>
           </div>
         )}
-
-        {/* MAP SECTION */}
         <div className="bg-gray-900 rounded-2xl p-4">
           <div className="bg-green-900/30 border border-green-800/40 rounded-xl h-36 flex items-center justify-center mb-3">
             <div className="text-center">
@@ -123,17 +486,12 @@ export default function BottlePassportPage() {
             </div>
           </div>
           <p className="text-sm text-gray-300 text-center leading-snug">
-            Las uvas de esta botella crecieron aquí.
-            <br />
+            Las uvas de esta botella crecieron aquí.<br />
             <span className="text-green-400">El satélite confirmó vegetación sana.</span>
           </p>
         </div>
-
-        {/* CLIMATE DATA */}
         <div className="bg-gray-900 rounded-2xl p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Datos de la temporada
-          </p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Datos de la temporada</p>
           <div className="grid grid-cols-3 gap-3">
             {[
               { icon: <ThermometerIcon className="w-6 h-6 text-gray-300 mx-auto" />, label: "Temp. media", value: "24°C / 11°C" },
@@ -148,58 +506,31 @@ export default function BottlePassportPage() {
             ))}
           </div>
         </div>
-
-        {/* VINE HEALTH */}
         <div className="bg-gray-900 rounded-2xl p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Salud del viñedo al momento de la certificación
-          </p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Salud del viñedo</p>
           <div className="space-y-2">
             {[
-              {
-                label: "Vigor vegetativo",
-                value: token.ndvi,
-                color: "bg-green-500",
-              },
-              {
-                label: "Salud de la planta",
-                value: token.ndre,
-                color: "bg-emerald-500",
-              },
-              {
-                label: "Humedad foliar",
-                value: token.ndwi,
-                color: "bg-blue-500",
-              },
+              { label: "Vigor vegetativo", value: token.ndvi, color: "bg-green-500" },
+              { label: "Salud de la planta", value: token.ndre, color: "bg-emerald-500" },
+              { label: "Humedad foliar", value: token.ndwi, color: "bg-blue-500" },
             ].map((item) => (
               <div key={item.label}>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-gray-400">{item.label}</span>
-                  <span className="text-white font-medium">
-                    {(item.value * 100).toFixed(0)}%
-                  </span>
+                  <span className="text-white font-medium">{(item.value * 100).toFixed(0)}%</span>
                 </div>
                 <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${item.color} rounded-full`}
-                    style={{ width: `${Math.min(item.value * 100, 100)}%` }}
-                  />
+                  <div className={`h-full ${item.color} rounded-full`} style={{ width: `${Math.min(item.value * 100, 100)}%` }} />
                 </div>
               </div>
             ))}
           </div>
         </div>
-
-        {/* BLOCKCHAIN SEAL */}
         <div className="bg-gray-900 rounded-2xl p-4">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-lg shrink-0">
-              ✓
-            </div>
+            <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-lg shrink-0">✓</div>
             <div>
-              <p className="text-sm font-semibold text-green-400">
-                Verificado on-chain
-              </p>
+              <p className="text-sm font-semibold text-green-400">Verificado on-chain</p>
               <p className="text-xs text-gray-500">BNB Chain (BSC Testnet)</p>
             </div>
           </div>
@@ -210,47 +541,49 @@ export default function BottlePassportPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Image hash</span>
-              <span className="text-gray-300 font-mono">
-                {formatHash(token.imageHash)}
-              </span>
+              <span className="text-gray-300 font-mono">{formatHash(token.imageHash)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Certificado</span>
-              <span className="text-gray-300">
-                {token.timestamp
-                  ? new Date(token.timestamp * 1000).toLocaleDateString("es-AR")
-                  : "-"}
-              </span>
+              <span className="text-gray-300">{token.timestamp ? new Date(token.timestamp * 1000).toLocaleDateString("es-AR") : "-"}</span>
             </div>
           </div>
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block text-center text-xs text-yellow-400 hover:text-yellow-300 mt-3"
-          >
+          <a href={explorerUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-xs text-yellow-400 hover:text-yellow-300 mt-3">
             Ver en BSCScan →
           </a>
         </div>
-
-        {/* CTA BUTTONS */}
         <div className="space-y-2 pt-2">
-          <button className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold rounded-xl py-3 text-sm transition-colors">
-            Agregar a mi colección
-          </button>
-          <button className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl py-3 text-sm transition-colors">
-            Compartir este vino
-          </button>
+          <button className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold rounded-xl py-3 text-sm transition-colors">Agregar a mi colección</button>
+          <button className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-xl py-3 text-sm transition-colors">Compartir este vino</button>
         </div>
-
-        {/* VESTA FOOTER */}
         <div className="text-center pt-4">
-          <p className="text-xs text-gray-600">
-            Certificado por{" "}
-            <span className="text-green-500 font-semibold">VESTA</span> · Satellite + IA + Blockchain
-          </p>
+          <p className="text-xs text-gray-600">Certificado por <span className="text-green-500 font-semibold">VESTA</span> · Satellite + IA + Blockchain</p>
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── ROUTER PRINCIPAL ─────────────────────────────────────────────────────────
+function BottlePassportContent() {
+  const params = useParams();
+  const tokenId = params?.tokenId as string;
+  const isBlockchainToken = /^\d+$/.test(tokenId);
+
+  if (!isBlockchainToken) {
+    return <BottlePassportStatic tokenId={tokenId} />;
+  }
+  return <BottlePassportBlockchain tokenId={tokenId} />;
+}
+
+export default function BottlePassportPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-12 h-12 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <BottlePassportContent />
+    </Suspense>
   );
 }

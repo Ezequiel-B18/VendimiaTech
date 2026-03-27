@@ -147,32 +147,44 @@ export default function MapaPage() {
           />
 
           {selectedBbox && (
-            <div className="mt-6 border-t border-white/10 pt-6">
-              <h3 className="text-sm font-semibold mb-3">Opciones de Lote</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  onClick={handleAnalyze}
-                  disabled={loading || saving}
-                  className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 border border-emerald-500/20 text-emerald-300 font-semibold py-3 px-6 rounded-xl transition-all text-sm shadow-[0_0_15px_rgba(16,185,129,0.1)] flex justify-center items-center gap-2"
-                >
-                  {loading ? "Analizando..." : "Analizar (One-off) →"}
-                </button>
-  
-                <div className="flex bg-black/40 border border-emerald-500/30 rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-400">
-                   <input 
-                     type="text"
-                     value={parcelName}
-                     onChange={e => setParcelName(e.target.value)}
-                     placeholder="Nombre. Ej: Lote 4"
-                     className="w-full bg-transparent px-3 py-2 text-sm text-white focus:outline-none"
-                   />
-                   <button 
-                     onClick={handleSaveParcel}
-                     disabled={saving || loading || !parcelName.trim()}
-                     className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800/50 text-white font-bold px-4 text-sm transition-colors whitespace-nowrap"
-                   >
-                     {saving ? "..." : "Guardar"}
-                   </button>
+            <div className="mt-6 border-t border-white/10 pt-6 space-y-3">
+              {/* Analyze now */}
+              <button
+                onClick={handleAnalyze}
+                disabled={loading || saving}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900 text-white font-bold py-3.5 px-6 rounded-xl transition-all text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Iniciando análisis...
+                  </>
+                ) : (
+                  <>🛰️ Analizar parcela</>
+                )}
+              </button>
+
+              {/* Save as named parcel */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <p className="text-xs text-gray-400 mb-2">Guardar como lote permanente</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={parcelName}
+                    onChange={(e) => setParcelName(e.target.value)}
+                    placeholder="Nombre del lote · ej: Lote 4 Norte"
+                    className="flex-1 bg-white/10 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                  />
+                  <button
+                    onClick={handleSaveParcel}
+                    disabled={saving || loading || !parcelName.trim()}
+                    className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800/60 disabled:text-gray-600 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
+                  >
+                    {saving ? "Guardando..." : "Guardar"}
+                  </button>
                 </div>
               </div>
             </div>

@@ -1,11 +1,13 @@
 import { db } from "@/lib/firebase";
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  orderBy, 
-  serverTimestamp 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  serverTimestamp,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 
 export interface Parcel {
@@ -72,6 +74,10 @@ export async function addWine(uid: string, name: string, variety: string, year: 
     console.error("Error agregando vino:", err);
     throw err;
   }
+}
+
+export async function updateWineImageUrl(uid: string, wineId: string, imageUrl: string) {
+  await updateDoc(doc(db, "users", uid, "wines", wineId), { imageUrl });
 }
 
 export async function getWines(uid: string): Promise<Wine[]> {
