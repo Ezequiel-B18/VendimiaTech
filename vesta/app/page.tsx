@@ -96,6 +96,12 @@ export default function HomePage() {
               About Us
             </button>
             <button
+              onClick={() => handleMenuNavigate("tracking-vino")}
+              className="px-4 py-2 rounded-full border border-green-300/20 bg-green-500/10 hover:bg-green-500/20 transition-colors text-sm text-green-100"
+            >
+              Tracking de vino
+            </button>
+            <button
               onClick={() => handleMenuNavigate("business-model")}
               className="px-4 py-2 rounded-full border border-sky-300/20 bg-sky-500/10 hover:bg-sky-500/20 transition-colors text-sm text-sky-100"
             >
@@ -109,35 +115,6 @@ export default function HomePage() {
             </button>
           </div>
         </div>
-
-        <details className="mt-4 group rounded-2xl border border-emerald-300/20 bg-gradient-to-r from-emerald-500/10 to-sky-500/10 open:shadow-lg open:shadow-emerald-950/30">
-          <summary className="list-none cursor-pointer px-4 py-3 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-emerald-100">Tracking de vino</p>
-              <p className="text-xs text-emerald-50/70">Ingresá el código del QR para ver su pasaporte</p>
-            </div>
-            <span className="text-sm text-emerald-200 transition-transform group-open:rotate-180">▼</span>
-          </summary>
-
-          <div className="px-4 pb-4">
-            <div className="h-px bg-white/10 mb-3" />
-            <div className="flex gap-2 max-w-md">
-              <input
-                type="text"
-                value={wineCode}
-                onChange={(e) => setWineCode(e.target.value)}
-                placeholder="Ej: 1 o bottle=1"
-                className="flex-1 bg-slate-900/60 border border-white/20 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-              <button
-                onClick={handleBottleLookup}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-sm font-semibold text-white"
-              >
-                Ver vino
-              </button>
-            </div>
-          </div>
-        </details>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-10">
@@ -253,8 +230,39 @@ export default function HomePage() {
         </div>
 
         <section
+          id="tracking-vino"
+          className="mt-12 rounded-[2rem] p-[1px] bg-gradient-to-br from-green-300/35 via-emerald-300/15 to-transparent"
+        >
+          <div className="rounded-[2rem] bg-slate-950/70 backdrop-blur-md px-6 py-7">
+            <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-green-500/15 text-green-200 border border-green-400/20">
+              Tracking de vino
+            </span>
+            <h2 className="text-2xl font-bold text-white mt-3">Ingresá tu código y abrí el pasaporte digital</h2>
+            <p className="text-gray-300 mt-3 leading-relaxed">
+              Escaneá el QR de la botella, ingresá su código y accedé al origen verificado, condiciones climáticas y
+              trazabilidad del lote en una sola vista.
+            </p>
+            <div className="mt-4 flex gap-2 max-w-md">
+              <input
+                type="text"
+                value={wineCode}
+                onChange={(e) => setWineCode(e.target.value)}
+                placeholder="Ej: 1842"
+                className="flex-1 bg-slate-900/60 border border-white/20 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <button
+                onClick={handleBottleLookup}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-sm font-semibold text-white"
+              >
+                Ver vino
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section
           id="about-us"
-          className="mt-12 rounded-[2rem] p-[1px] bg-gradient-to-br from-emerald-300/35 via-sky-300/15 to-transparent"
+          className="mt-6 rounded-[2rem] p-[1px] bg-gradient-to-br from-emerald-300/35 via-sky-300/15 to-transparent"
         >
           <div className="rounded-[2rem] bg-slate-950/70 backdrop-blur-md px-6 py-7">
             <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-400/20">
@@ -278,8 +286,15 @@ export default function HomePage() {
             </span>
             <h2 className="text-2xl font-bold text-white mt-3">Suscripción productiva + certificación exportable</h2>
             <p className="text-gray-300 mt-3 leading-relaxed">
-            Productores acceden a alertas tempranas y monitoreo por suscripción mensual. Bodegas exportadoras usan
-            certificación digital verificable para reducir costos de auditoría y fortalecer confianza comercial.
+              VESTA opera con dos líneas de ingresos. Para productores medianos (20-80 ha), la propuesta es alerta
+              temprana de helada y seguimiento por parcela con ticket mensual objetivo de USD 99-150. Para bodegas
+              exportadoras (100-500 ha), la propuesta es certificación verificable y trazabilidad con ticket objetivo
+              de USD 299/mes, reemplazando auditorías anuales de USD 5.000-15.000.
+            </p>
+            <p className="text-gray-300 mt-3 leading-relaxed">
+              El enfoque inicial es Mendoza: 896 bodegas y 14.593 viñedos, con dos ciclos recientes de emergencia
+              agropecuaria. El crecimiento año 2-3 contempla acuerdos con aseguradoras y organismos públicos para
+              acelerar adopción de microseguros y certificación objetiva de eventos climáticos.
             </p>
           </div>
         </section>
@@ -295,16 +310,44 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold text-white mt-3">Preguntas frecuentes</h2>
             <div className="mt-4 space-y-3 text-gray-300">
               <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <summary className="cursor-pointer font-semibold text-white">¿Necesito conocimientos técnicos para usar VESTA?</summary>
-                <p className="mt-2">No. Solo seleccionás tu parcela y recibís un diagnóstico claro con recomendaciones accionables.</p>
+                <summary className="cursor-pointer font-semibold text-white">¿Qué es VESTA exactamente?</summary>
+                <p className="mt-2">
+                  VESTA es un sistema que usa satélites, inteligencia artificial y blockchain para proteger la
+                  cosecha del productor y contar la historia real de cada botella de vino. Avisa antes de que llegue
+                  la helada, certifica el estado del viñedo de forma objetiva y permite que cualquier persona en el
+                  mundo verifique el origen de lo que está tomando escaneando un QR.
+                </p>
               </details>
               <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <summary className="cursor-pointer font-semibold text-white">¿Qué pasa si escaneo un QR de botella?</summary>
-                <p className="mt-2">Podés ingresar el código en Tracking de vino para abrir directamente el pasaporte digital de esa botella.</p>
+                <summary className="cursor-pointer font-semibold text-white">¿Necesito instalar algo o comprar equipamiento?</summary>
+                <p className="mt-2">
+                  No. VESTA usa satélites que ya están en órbita cubriendo toda Mendoza. Solo necesitás acceso desde
+                  tu celular o computadora. Sin sensores, sin hardware, sin instalaciones.
+                </p>
               </details>
               <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <summary className="cursor-pointer font-semibold text-white">¿La certificación on-chain es obligatoria?</summary>
-                <p className="mt-2">No. Es opcional y agrega trazabilidad verificable cuando la bodega quiere respaldar su análisis.</p>
+                <summary className="cursor-pointer font-semibold text-white">¿Cómo avisa VESTA antes de una helada?</summary>
+                <p className="mt-2">
+                  Cruza el pronóstico climático con el historial exacto de tu parcela, no de Mendoza en general, sino
+                  de tus coordenadas específicas. Si detecta riesgo, te llega una alerta con 8 a 12 horas de
+                  anticipación. Tiempo real para actuar.
+                </p>
+              </details>
+              <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <summary className="cursor-pointer font-semibold text-white">¿Qué es blockchain y por qué lo usa VESTA?</summary>
+                <p className="mt-2">
+                  Es un registro digital que nadie puede modificar ni falsificar. VESTA lo usa para certificar que los
+                  datos del viñedo son reales y permanentes. Un importador en Alemania o un consumidor en Tokio pueden
+                  verificarlo solos, sin intermediarios ni papeles.
+                </p>
+              </details>
+              <details className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <summary className="cursor-pointer font-semibold text-white">¿Qué veo cuando escaneo el QR de una botella?</summary>
+                <p className="mt-2">
+                  El mapa satelital real del viñedo donde crecieron esas uvas, los datos climáticos de esa temporada y
+                  la confirmación de que todo fue registrado y no puede alterarse. Sin app, se abre directo desde la
+                  cámara del celular.
+                </p>
               </details>
             </div>
           </div>
