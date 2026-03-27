@@ -74,10 +74,10 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_35%),linear-gradient(to_bottom,#052e16,#0a0f1d_45%,#020617)] text-white">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(14,165,233,0.14),transparent_30%),linear-gradient(to_bottom,#052e16,#0a0f1d_45%,#020617)] text-white">
       {/* Header */}
-      <header className="px-6 py-5 border-b border-white/10 backdrop-blur-sm bg-slate-950/25">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <header className="px-6 py-5 border-b border-white/10 backdrop-blur-sm bg-slate-950/30 sticky top-0 z-30">
+        <div className="max-w-5xl mx-auto flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl shadow-lg shadow-emerald-900/40 flex items-center justify-center text-lg">
               🛰️
@@ -117,15 +117,18 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-10">
+      <main className="max-w-5xl mx-auto px-4 py-10">
         {/* Hero */}
-        <div className="text-center mb-10">
-          <h1 className="text-4xl sm:text-5xl font-bold mb-4 leading-tight">
+        <div className="text-center mb-10 rounded-[2rem] border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.03] backdrop-blur-md px-5 py-8 shadow-[0_20px_70px_rgba(2,6,23,0.45)]">
+
+          <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight">
             Conocé el estado de tu viñedo
             <br />
-            <span className="text-green-400">desde el satélite</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-300 via-emerald-300 to-cyan-300">
+              desde el satélite
+            </span>
           </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="text-slate-300 text-lg max-w-2xl mx-auto">
             Análisis satelital Sentinel-2 + IA agronómica + alertas de helada 8hs antes.
             Seleccioná tu parcela en el mapa y analizala en segundos.
           </p>
@@ -138,6 +141,24 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-2 mt-5 bg-red-900/40 border border-red-700/50 text-red-300 px-4 py-2 rounded-full text-sm">
             <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
             El 23 Mar 2026: temperatura 3.1°C sobre Bodega Monteviejo — VESTA lo habría alertado 8hs antes
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3">
+              <p className="text-xs uppercase tracking-wider text-emerald-200/80">Alerta temprana</p>
+              <p className="text-2xl font-bold text-emerald-100">8-12 hs</p>
+              <p className="text-xs text-emerald-100/80">para actuar antes del daño</p>
+            </div>
+            <div className="rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-3">
+              <p className="text-xs uppercase tracking-wider text-sky-200/80">Mercado inicial</p>
+              <p className="text-2xl font-bold text-sky-100">896</p>
+              <p className="text-xs text-sky-100/80">bodegas en Mendoza</p>
+            </div>
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-500/10 px-4 py-3">
+              <p className="text-xs uppercase tracking-wider text-amber-200/80">Viñedos objetivo</p>
+              <p className="text-2xl font-bold text-amber-100">14.593</p>
+              <p className="text-xs text-amber-100/80">fincas registradas</p>
+            </div>
           </div>
         </div>
 
@@ -170,7 +191,11 @@ export default function HomePage() {
         </div>
 
         {/* Map */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
+        <div className="bg-gradient-to-b from-white/[0.08] to-white/[0.04] border border-white/10 rounded-2xl p-4 backdrop-blur shadow-xl shadow-slate-950/30">
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-white">Seleccioná tu parcela</p>
+            <p className="text-xs text-slate-300">Dibujá en el mapa o usá coordenadas para iniciar el análisis.</p>
+          </div>
           <MapSelector
             onBboxSelected={handleBboxSelected}
             initialBbox={selectedBbox}
@@ -220,7 +245,7 @@ export default function HomePage() {
           ].map((item) => (
             <div
               key={item.title}
-              className="bg-white/5 border border-white/10 rounded-xl p-4"
+              className="bg-gradient-to-b from-white/[0.09] to-white/[0.04] border border-white/10 rounded-2xl p-4"
             >
               <div className="text-2xl mb-2">{item.icon}</div>
               <p className="font-semibold text-white">{item.title}</p>
@@ -247,7 +272,7 @@ export default function HomePage() {
                 type="text"
                 value={wineCode}
                 onChange={(e) => setWineCode(e.target.value)}
-                placeholder="Ej: 1842"
+                placeholder="Ej: 3"
                 className="flex-1 bg-slate-900/60 border border-white/20 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-400"
               />
               <button
