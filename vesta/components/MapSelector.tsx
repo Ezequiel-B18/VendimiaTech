@@ -43,7 +43,10 @@ export default function MapSelector({ onBboxSelected, initialBbox }: Props) {
   const [coordsError, setCoordsError] = useState("");
 
   useEffect(() => {
-    if (!mapRef.current || leafletMapRef.current) return;
+    if (!mapRef.current) return;
+    // Prevent double-init in React Strict Mode
+    if (leafletMapRef.current) return;
+    if ((mapRef.current as unknown as Record<string, unknown>)._leaflet_id) return;
     let cancelled = false;
 
     // Dynamic import to avoid SSR issues

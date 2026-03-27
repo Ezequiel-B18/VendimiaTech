@@ -76,6 +76,13 @@ export default function MapaPage() {
       <header className="px-6 py-5 border-b border-white/10 backdrop-blur-sm bg-slate-950/30 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/escritorio")}
+              className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm border border-white/5 shadow-sm mr-2"
+              aria-label="Volver al escritorio"
+            >
+              ← <span className="hidden sm:inline">Volver</span>
+            </button>
             <div className="w-9 h-9 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl shadow-lg shadow-emerald-900/40 flex items-center justify-center text-lg">
               🛰️
             </div>

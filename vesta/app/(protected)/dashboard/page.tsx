@@ -2,13 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import QRCode from "qrcode";
 import AlertBanner from "@/components/AlertBanner";
 import StatusCard from "@/components/StatusCard";
 import WeatherChart from "@/components/WeatherChart";
 import WalletButton, { WalletState } from "@/components/WalletButton";
-import type { GeminiAnalysis } from "@/lib/gemini";
+import type { GeminiAnalysis, GeminiTemporalAnalysis } from "@/lib/gemini";
 import type { WeatherResult } from "@/lib/weather";
+import type { PixelDistribution } from "@/lib/sentinel";
 
 const SatelliteMap = dynamic(() => import("@/components/SatelliteMap"), {
   ssr: false,
@@ -22,13 +24,35 @@ const SatelliteMap = dynamic(() => import("@/components/SatelliteMap"), {
 interface AnalysisResult {
   imageBase64: string;
   imageHash: string;
-  indices: { ndvi: number; ndre: number; ndwi: number };
+  indices: {
+    ndvi: number;
+    ndre: number;
+    ndwi: number;
+    distribution?: PixelDistribution;
+    totalVegetationPercent?: number;
+  };
   geminiAnalysis: GeminiAnalysis;
+  weather: WeatherResult;
   timestamp: string;
   bbox: number[];
 }
 
-type Step = "idle" | "satellite" | "weather" | "done" | "error";
+interface TemporalResult {
+  current: {
+    imageBase64: string;
+    imageHash: string;
+    indices: { ndvi: number; ndre: number; ndwi: number };
+  };
+  comparison: {
+    imageBase64: string;
+    imageHash: string;
+    indices: { ndvi: number; ndre: number; ndwi: number };
+    dateRange: { from: string; to: string };
+  };
+  evolution: GeminiTemporalAnalysis;
+}
+
+type Step = "idle" | "analyzing" | "done" | "error";
 
 interface CertifyResult {
   txHash: string;
@@ -37,6 +61,7 @@ interface CertifyResult {
 }
 
 type CertifyStep = "idle" | "minting" | "success" | "error";
+type TemporalStep = "idle" | "loading" | "done" | "error";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -58,42 +83,40 @@ function DashboardContent() {
   const [selectedChain, setSelectedChain] = useState<"bnb" | "rsk">("bnb");
   const [signingMode, setSigningMode] = useState<"server" | "wallet">("server");
 
+  // Partida de vinos
+  const [nombreVino, setNombreVino] = useState("");
+  const [fechaCosecha, setFechaCosecha] = useState("");
+  const [varietal, setVarietal] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [partidaUrl, setPartidaUrl] = useState<string | null>(null);
+  const qrImgRef = useRef<HTMLImageElement>(null);
+
+  // Temporal analysis state
+  const [temporalStep, setTemporalStep] = useState<TemporalStep>("idle");
+  const [temporalResult, setTemporalResult] = useState<TemporalResult | null>(null);
+  const [temporalError, setTemporalError] = useState<string | null>(null);
+  const [comparisonDate, setComparisonDate] = useState<string>("");
+
   useEffect(() => {
     if (!bbox) return;
 
     const run = async () => {
       try {
-        setStep("satellite");
+        setStep("analyzing");
 
-        // 1. Satellite analysis
-        const analyzeRes = await fetch("/api/analyze", {
+        // Single API call — satellite + weather + Gemini (combined)
+        const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ bbox }),
         });
-        if (!analyzeRes.ok) {
-          const err = await analyzeRes.json();
-          throw new Error(err.error || "Error en análisis satelital");
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Error en análisis");
         }
-        const analysisData: AnalysisResult = await analyzeRes.json();
-        setAnalysis(analysisData);
-
-        setStep("weather");
-
-        // 2. Weather (center of bbox)
-        const lat = (bbox[1] + bbox[3]) / 2;
-        const lon = (bbox[0] + bbox[2]) / 2;
-        const weatherRes = await fetch("/api/weather", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lat, lon }),
-        });
-        if (!weatherRes.ok) {
-          const err = await weatherRes.json();
-          throw new Error(err.error || "Error en datos climáticos");
-        }
-        const weatherData: WeatherResult = await weatherRes.json();
-        setWeather(weatherData);
+        const data: AnalysisResult = await res.json();
+        setAnalysis(data);
+        setWeather(data.weather);
 
         setStep("done");
       } catch (err) {
@@ -105,6 +128,75 @@ function DashboardContent() {
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bboxParam]);
+
+  const handleGenerarQR = async () => {
+    const id = certResult?.tokenId ?? `partida-${Date.now()}`;
+
+    const params = new URLSearchParams({
+      vino: nombreVino,
+      cosecha: fechaCosecha,
+      varietal: varietal,
+      bodega: "Parcela VESTA",
+      coords: bbox
+        ? `${((bbox[1] + bbox[3]) / 2).toFixed(4)},${((bbox[0] + bbox[2]) / 2).toFixed(4)}`
+        : "-33.6650,-69.2350",
+      ndvi: String(analysis?.indices.ndvi ?? 0.65),
+      ndre: String(analysis?.indices.ndre ?? 0.42),
+      ndwi: String(analysis?.indices.ndwi ?? 0.18),
+      evento: weather?.frostRisk ? "helada_detectada" : "",
+      txHash: certResult?.txHash ?? "",
+      tokenId: certResult?.tokenId ?? "",
+    });
+
+    const url = `https://vendimiatech-gamma.vercel.app/bottle/${id}?${params.toString()}`;
+    setPartidaUrl(url);
+    const dataUrl = await QRCode.toDataURL(url, { width: 200, margin: 2 });
+    setQrDataUrl(dataUrl);
+  };
+
+  const handleCopiarLink = () => {
+    if (partidaUrl) navigator.clipboard.writeText(partidaUrl);
+  };
+
+  const handleDescargarQR = () => {
+    if (!qrDataUrl) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `qr-partida-${nombreVino || "vino"}.png`;
+    a.click();
+  };
+  const handleTemporalAnalysis = async () => {
+    if (!bbox || !comparisonDate) return;
+    setTemporalStep("loading");
+    setTemporalError(null);
+    try {
+      // Use comparison date as a 15-day window ending at that date
+      const dateTo = comparisonDate;
+      const from = new Date(comparisonDate);
+      from.setDate(from.getDate() - 15);
+      const dateFrom = from.toISOString().split("T")[0];
+
+      const res = await fetch("/api/analyze/temporal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bbox,
+          comparisonDateFrom: dateFrom,
+          comparisonDateTo: dateTo,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Error en análisis temporal");
+      }
+      const data: TemporalResult = await res.json();
+      setTemporalResult(data);
+      setTemporalStep("done");
+    } catch (err) {
+      setTemporalError(err instanceof Error ? err.message : "Error desconocido");
+      setTemporalStep("error");
+    }
+  };
 
   const handleCertify = async () => {
     if (!analysis) return;
@@ -128,12 +220,10 @@ function DashboardContent() {
       };
 
       if (signingMode === "wallet" && wallet) {
-        // Client-side: user signs with their own wallet
         const { mintWithWallet } = await import("@/lib/blockchain/clientSign");
         const data = await mintWithWallet(wallet.provider, selectedChain, mintParams);
         setCertResult(data);
       } else {
-        // Server-side: deployer key signs
         const res = await fetch("/api/certify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -161,24 +251,18 @@ function DashboardContent() {
         <div className="text-center">
           <p className="text-gray-500 mb-4">No hay coordenadas seleccionadas.</p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/escritorio")}
             className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm"
           >
-            Volver al mapa
+            Volver al escritorio
           </button>
         </div>
       </div>
     );
   }
 
-  // Loading states
-  if (step !== "done" && step !== "error") {
-    const steps = [
-      { key: "satellite", label: "Descargando imagen Sentinel-2..." },
-      { key: "weather", label: "Obteniendo datos climáticos..." },
-    ];
-    const currentIdx = steps.findIndex((s) => s.key === step);
-
+  // Loading state
+  if (step === "analyzing") {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center max-w-sm">
@@ -189,23 +273,7 @@ function DashboardContent() {
             </svg>
           </div>
           <p className="text-white font-semibold mb-2">Analizando tu parcela</p>
-          <div className="space-y-2 mt-4">
-            {steps.map((s, i) => (
-              <div
-                key={s.key}
-                className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
-                  i < currentIdx
-                    ? "text-green-400 bg-green-900/20"
-                    : i === currentIdx
-                    ? "text-white bg-white/10"
-                    : "text-gray-600"
-                }`}
-              >
-                {i < currentIdx ? "✓" : i === currentIdx ? "⟳" : "○"}
-                <span>{s.label}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-gray-400 text-sm">Descargando imagen satelital, datos climáticos y ejecutando análisis IA...</p>
         </div>
       </div>
     );
@@ -218,10 +286,10 @@ function DashboardContent() {
           <p className="text-red-500 font-semibold text-lg mb-2">Error en el análisis</p>
           <p className="text-gray-500 text-sm mb-4">{error}</p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/escritorio")}
             className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm"
           >
-            Volver al mapa
+            Volver al escritorio
           </button>
         </div>
       </div>
@@ -230,9 +298,15 @@ function DashboardContent() {
 
   const frostAlert = weather?.frostAlert;
 
+  // Temporal analysis evolution config
+  const evolutionConfig = temporalResult?.evolution ? {
+    mejora: { icon: "📈", color: "text-green-600", bg: "bg-green-50", border: "border-green-200", label: "Mejora detectada" },
+    estable: { icon: "➡️", color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", label: "Sin cambios significativos" },
+    deterioro: { icon: "📉", color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Deterioro detectado" },
+  }[temporalResult.evolution.cambio_general] : null;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Frost alert banner — full width, top */}
       {frostAlert && (
         <AlertBanner
           minTemp={frostAlert.minTemp}
@@ -245,10 +319,10 @@ function DashboardContent() {
       <header className="bg-gray-950 border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/")}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
+            onClick={() => router.push("/escritorio")}
+            className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm border border-white/5 shadow-sm"
           >
-            ←
+            ← Volver
           </button>
           <div className="w-7 h-7 bg-green-500 rounded-md flex items-center justify-center text-sm">
             🛰️
@@ -257,9 +331,7 @@ function DashboardContent() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-600 hidden sm:block">
-            {analysis?.timestamp
-              ? new Date(analysis.timestamp).toLocaleString("es-AR")
-              : ""}
+            {analysis?.timestamp ? new Date(analysis.timestamp).toLocaleString("es-AR") : ""}
           </span>
           <WalletButton wallet={wallet} onConnect={setWallet} />
         </div>
@@ -267,6 +339,7 @@ function DashboardContent() {
 
       {/* Three-column layout */}
       <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[40%_35%_25%] gap-5">
+
         {/* LEFT: Satellite map */}
         <div className="flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
@@ -278,18 +351,251 @@ function DashboardContent() {
               bbox={bbox}
             />
           )}
+
+          {/* Pixel distribution */}
+          {analysis?.indices?.distribution && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                Distribución de cobertura
+              </p>
+              <div className="space-y-2">
+                {[
+                  { key: "green_intense", label: "Vegetación sana", color: "bg-green-600", value: analysis.indices.distribution.green_intense },
+                  { key: "green_mid", label: "Vegetación media", color: "bg-green-400", value: analysis.indices.distribution.green_mid },
+                  { key: "green_light", label: "Vegetación baja", color: "bg-green-300", value: analysis.indices.distribution.green_light },
+                  { key: "yellow", label: "Vigor bajo", color: "bg-yellow-400", value: analysis.indices.distribution.yellow },
+                  { key: "blue", label: "Humedad alta", color: "bg-blue-500", value: analysis.indices.distribution.blue },
+                  { key: "red", label: "Sin vegetación", color: "bg-red-500", value: analysis.indices.distribution.red },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center gap-2">
+                     <div className={`w-3 h-3 rounded-sm ${item.color} shrink-0`} />
+                     <span className="text-xs text-gray-600 flex-1">{item.label}</span>
+                     <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                       <div
+                         className={`h-full ${item.color} rounded-full transition-all`}
+                         style={{ width: `${Math.min(item.value, 100)}%` }}
+                       />
+                     </div>
+                     <span className="text-xs text-gray-500 w-8 text-right">{item.value}%</span>
+                  </div>
+                ))}
+              </div>
+              {analysis.indices.totalVegetationPercent !== undefined && (
+                <p className="text-xs text-gray-400 mt-3 pt-2 border-t border-gray-100">
+                  Total vegetación: <strong className="text-green-600">{analysis.indices.totalVegetationPercent}%</strong>
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* CENTER: Status + recommendations */}
+        {/* CENTER: Status + QR + Certify */}
         <div className="flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
             Estado del viñedo
           </h2>
           {analysis && (
-            <StatusCard
-              analysis={analysis.geminiAnalysis}
-              indices={analysis.indices}
-            />
+            <StatusCard analysis={analysis.geminiAnalysis} indices={analysis.indices} />
+          )}
+
+          {/* ─── CREAR PARTIDA DE VINOS ─── */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Crear partida de vinos
+            </p>
+
+            <div className="space-y-2 mb-3">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Nombre del vino</label>
+                <input
+                  type="text"
+                  placeholder="ej: Malbec Reserva"
+                  value={nombreVino}
+                  onChange={(e) => setNombreVino(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Año de cosecha</label>
+                <input
+                  type="number"
+                  placeholder="ej: 2026"
+                  min="1990"
+                  max="2099"
+                  value={fechaCosecha}
+                  onChange={(e) => setFechaCosecha(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Varietal (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="ej: Malbec 100%"
+                  value={varietal}
+                  onChange={(e) => setVarietal(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-400"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleGenerarQR}
+              disabled={!nombreVino}
+              className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold rounded-lg py-2.5 text-sm transition-colors disabled:opacity-40"
+            >
+              Generar QR de partida
+            </button>
+
+            {qrDataUrl && partidaUrl && (
+              <div className="mt-4 space-y-3">
+                <div className="flex justify-center">
+                  <img ref={qrImgRef} src={qrDataUrl} alt="QR partida" className="rounded-lg border border-gray-100" />
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-gray-400 mb-1">Link del pasaporte</p>
+                  <p className="text-xs font-mono text-gray-700 break-all">{partidaUrl}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCopiarLink}
+                    className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg py-2 text-xs font-medium transition-colors"
+                  >
+                    Copiar link
+                  </button>
+                  <button
+                    onClick={handleDescargarQR}
+                    className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg py-2 text-xs font-medium transition-colors"
+                  >
+                    Descargar QR
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ─── CERTIFICAR ON-CHAIN ─── */}
+          {/* Temporal comparison trigger */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              📅 Comparar con fecha anterior
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="date"
+                value={comparisonDate}
+                onChange={(e) => setComparisonDate(e.target.value)}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                max={new Date().toISOString().split("T")[0]}
+              />
+              <button
+                onClick={handleTemporalAnalysis}
+                disabled={!comparisonDate || temporalStep === "loading"}
+                className="bg-indigo-500 hover:bg-indigo-400 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                {temporalStep === "loading" ? "Analizando..." : "Comparar"}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              Seleccioná una fecha para comparar la evolución del viñedo con la imagen actual.
+            </p>
+          </div>
+
+          {/* Temporal result */}
+          {temporalStep === "done" && temporalResult && evolutionConfig && (
+            <div className={`rounded-xl border ${evolutionConfig.border} ${evolutionConfig.bg} p-4`}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">{evolutionConfig.icon}</span>
+                <p className={`text-sm font-bold ${evolutionConfig.color}`}>{evolutionConfig.label}</p>
+              </div>
+
+              {/* Before/after mini images */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-500 mb-1">
+                    Anterior ({temporalResult.comparison.dateRange.from} – {temporalResult.comparison.dateRange.to})
+                  </p>
+                  <img
+                    src={`data:image/png;base64,${temporalResult.comparison.imageBase64}`}
+                    alt="Imagen anterior"
+                    className="rounded-lg border border-gray-200 w-full aspect-square object-cover"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Vigor: {(temporalResult.comparison.indices.ndvi * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-500 mb-1">Actual</p>
+                  <img
+                    src={`data:image/png;base64,${temporalResult.current.imageBase64}`}
+                    alt="Imagen actual"
+                    className="rounded-lg border border-gray-200 w-full aspect-square object-cover"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Vigor: {(temporalResult.current.indices.ndvi * 100).toFixed(0)}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Evolution details */}
+              <div className="space-y-2 text-sm">
+                <p className="text-gray-700">
+                  <strong>Cambio estimado:</strong> {temporalResult.evolution.porcentaje_cambio_ndvi > 0 ? "+" : ""}
+                  {temporalResult.evolution.porcentaje_cambio_ndvi}% en vigor
+                </p>
+                <p className="text-gray-700">
+                  <strong>Tendencia:</strong> {temporalResult.evolution.tendencia}
+                </p>
+                <p className="text-gray-700">
+                  <strong>Causa probable:</strong> {temporalResult.evolution.posible_causa}
+                </p>
+
+                {temporalResult.evolution.zonas_mejoradas.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-green-700">Zonas mejoradas:</p>
+                    <ul className="text-xs text-gray-600 ml-3">
+                      {temporalResult.evolution.zonas_mejoradas.map((z, i) => (
+                        <li key={i}>· {z}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {temporalResult.evolution.zonas_deterioradas.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-red-700">Zonas deterioradas:</p>
+                    <ul className="text-xs text-gray-600 ml-3">
+                      {temporalResult.evolution.zonas_deterioradas.map((z, i) => (
+                        <li key={i}>· {z}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {temporalResult.evolution.recomendaciones.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-700">Recomendaciones:</p>
+                    <ul className="text-xs text-gray-600 ml-3">
+                      {temporalResult.evolution.recomendaciones.map((r, i) => (
+                        <li key={i}>→ {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {temporalStep === "error" && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm text-red-600">{temporalError}</p>
+              <button
+                onClick={() => setTemporalStep("idle")}
+                className="text-xs text-gray-500 hover:text-gray-700 mt-2"
+              >
+                Reintentar
+              </button>
+            </div>
           )}
 
           {/* Certify — chain selector */}
@@ -348,7 +654,6 @@ function DashboardContent() {
               })}
             </div>
 
-            {/* Wallet required warning */}
             {signingMode === "wallet" && !wallet && (
               <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-700/30 rounded-lg px-3 py-2 mb-3">
                 <span>⚠️</span>
@@ -362,7 +667,6 @@ function DashboardContent() {
               </div>
             )}
 
-            {/* Hash preview */}
             <div className="flex justify-between text-xs mb-3">
               <span className="text-gray-500">Hash imagen</span>
               <span className="text-gray-400 font-mono truncate max-w-[140px]">
@@ -405,18 +709,12 @@ function DashboardContent() {
                     </span>
                   </div>
                 </div>
-                <a
-                  href={certResult.explorerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-center text-xs text-green-400 hover:underline"
-                >
+                <a href={certResult.explorerUrl} target="_blank" rel="noopener noreferrer"
+                  className="block text-center text-xs text-green-400 hover:underline">
                   Ver en explorer →
                 </a>
-                <a
-                  href={`/bottle/${certResult.tokenId}`}
-                  className="block text-center text-xs text-blue-400 hover:underline"
-                >
+                <a href={`/bottle/${certResult.tokenId}`}
+                  className="block text-center text-xs text-blue-400 hover:underline">
                   Ver pasaporte de la botella →
                 </a>
               </div>
@@ -425,10 +723,7 @@ function DashboardContent() {
             {certStep === "error" && (
               <div className="space-y-2">
                 <p className="text-xs text-red-400">{certError}</p>
-                <button
-                  onClick={() => setCertStep("idle")}
-                  className="text-xs text-gray-500 hover:text-gray-300"
-                >
+                <button onClick={() => setCertStep("idle")} className="text-xs text-gray-500 hover:text-gray-300">
                   Reintentar
                 </button>
               </div>
@@ -450,45 +745,27 @@ function DashboardContent() {
             />
           )}
 
-          {/* Weather risks */}
           {weather && (
             <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                 Alertas activas
               </p>
-              <div
-                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                  weather.frostRisk
-                    ? "bg-red-50 text-red-700"
-                    : "bg-gray-50 text-gray-400"
-                }`}
-              >
+              <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                weather.frostRisk ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-400"
+              }`}>
                 <span>🌡️</span>
-                <span>
-                  {weather.frostRisk ? "Riesgo de helada detectado" : "Sin riesgo de helada"}
-                </span>
+                <span>{weather.frostRisk ? "Riesgo de helada detectado" : "Sin riesgo de helada"}</span>
               </div>
-              <div
-                className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
-                  weather.fungalRisk
-                    ? "bg-orange-50 text-orange-700"
-                    : "bg-gray-50 text-gray-400"
-                }`}
-              >
+              <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+                weather.fungalRisk ? "bg-orange-50 text-orange-700" : "bg-gray-50 text-gray-400"
+              }`}>
                 <span>🍄</span>
-                <span>
-                  {weather.fungalRisk
-                    ? "Riesgo fúngico (lluvia reciente)"
-                    : "Sin riesgo fúngico"}
-                </span>
+                <span>{weather.fungalRisk ? "Riesgo fúngico (lluvia reciente)" : "Sin riesgo fúngico"}</span>
               </div>
               {weather.tempDrops.length > 0 && (
                 <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700">
                   <span>⚡</span>
-                  <span>
-                    Shock térmico el{" "}
-                    {weather.tempDrops[0]}
-                  </span>
+                  <span>Shock térmico el {weather.tempDrops[0]}</span>
                 </div>
               )}
             </div>

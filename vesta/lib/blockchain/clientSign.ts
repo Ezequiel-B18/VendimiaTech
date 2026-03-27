@@ -66,17 +66,14 @@ export async function mintWithWallet(
     );
   }
 
-  // Wrap EIP-1193 provider with ethers BrowserProvider (v6)
-  const provider = new ethers.BrowserProvider(
-    eip1193Provider as ethers.Eip1193Provider
-  );
+  // Use raw EIP-1193 to switch chains BEFORE creating the ethers provider
+  // (Creating BrowserProvider before the switch causes NETWORK_ERROR in ethers v6)
+  const eth = eip1193Provider as {
+    request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  };
 
-  // Switch to the correct chain if needed
-  const network = await provider.getNetwork();
-  if (Number(network.chainId) !== cfg.chainId) {
-    const eth = eip1193Provider as {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-    };
+  const currentChainIdHex = await eth.request({ method: "eth_chainId" }) as string;
+  if (parseInt(currentChainIdHex, 16) !== cfg.chainId) {
     try {
       await eth.request({
         method: "wallet_switchEthereumChain",
@@ -89,11 +86,22 @@ export async function mintWithWallet(
           method: "wallet_addEthereumChain",
           params: [cfg.addChainParams],
         });
+        // Retry switch after adding
+        await eth.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: cfg.addChainParams.chainId }],
+        });
       } else {
         throw switchError;
       }
     }
   }
+
+  // Create provider AFTER chain switch, with explicit chainId to avoid NETWORK_ERROR
+  const provider = new ethers.BrowserProvider(
+    eip1193Provider as ethers.Eip1193Provider,
+    cfg.chainId
+  );
 
   const signer = await provider.getSigner();
   const contract = new ethers.Contract(contractAddress, ABI, signer);
