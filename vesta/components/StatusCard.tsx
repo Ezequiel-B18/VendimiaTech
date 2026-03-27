@@ -102,7 +102,7 @@ export default function StatusCard({ analysis, indices }: Props) {
           {analysis.alerta_climatica && (
             <div className="mb-2">
               <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
-                Alerta climática
+                Contexto climático
               </p>
               <p className="text-sm text-blue-900">{analysis.alerta_climatica}</p>
             </div>
