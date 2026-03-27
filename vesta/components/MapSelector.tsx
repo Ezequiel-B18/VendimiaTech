@@ -44,9 +44,19 @@ export default function MapSelector({ onBboxSelected, initialBbox }: Props) {
 
   useEffect(() => {
     if (!mapRef.current || leafletMapRef.current) return;
+    let cancelled = false;
 
     // Dynamic import to avoid SSR issues
     import("leaflet").then((L) => {
+      if (cancelled || !mapRef.current || leafletMapRef.current) return;
+
+      // React StrictMode/Fast Refresh can mount twice before cleanup.
+      // Leaflet marks the DOM node with _leaflet_id, so clear stale marks.
+      const container = mapRef.current as HTMLDivElement & { _leaflet_id?: number };
+      if (container._leaflet_id) {
+        container._leaflet_id = undefined;
+      }
+
       // Fix default marker icons
       delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
       L.Icon.Default.mergeOptions({
@@ -55,7 +65,7 @@ export default function MapSelector({ onBboxSelected, initialBbox }: Props) {
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
-      const map = L.map(mapRef.current!, {
+      const map = L.map(container, {
         center: [-33.9, -69.0],
         zoom: 10,
       });
@@ -157,6 +167,7 @@ export default function MapSelector({ onBboxSelected, initialBbox }: Props) {
     });
 
     return () => {
+      cancelled = true;
       if (leafletMapRef.current) {
         (leafletMapRef.current as { remove: () => void }).remove();
         leafletMapRef.current = null;
