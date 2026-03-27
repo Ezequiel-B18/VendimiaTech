@@ -49,7 +49,8 @@ function buildFallbackGemini(weather: WeatherResult) {
       ...(weather.tempDrops.length > 0 ? ["Shock térmico"] : []),
     ],
     urgencia: hasAnyRisk ? "esta_semana" : "sin_urgencia",
-    comparacion: "Análisis simplificado por disponibilidad parcial de datos externos.",
+    comparacion:
+      "Análisis simplificado por disponibilidad parcial de datos externos.",
     recomendaciones_generales: hasAnyRisk
       ? [
           "Monitorear la parcela durante las próximas 24 horas.",
@@ -61,7 +62,8 @@ function buildFallbackGemini(weather: WeatherResult) {
           "Repetir análisis para confirmar evolución vegetativa.",
         ],
     confianza_analisis: "media",
-    observaciones: "Se aplicó modo resiliente por falla temporal de servicios externos.",
+    observaciones:
+      "Se aplicó modo resiliente por falla temporal de servicios externos.",
   } as const;
 }
 
@@ -73,14 +75,16 @@ export async function POST(req: NextRequest) {
     if (!bbox || bbox.length !== 4) {
       return NextResponse.json(
         { error: "bbox must be [lon_min, lat_min, lon_max, lat_max]" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    if (bbox.some((n) => Number.isNaN(Number(n)) || !Number.isFinite(Number(n)))) {
+    if (
+      bbox.some((n) => Number.isNaN(Number(n)) || !Number.isFinite(Number(n)))
+    ) {
       return NextResponse.json(
         { error: "bbox values must be valid finite numbers" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

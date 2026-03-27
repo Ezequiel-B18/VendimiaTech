@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     if (lat === undefined || lon === undefined) {
       return NextResponse.json(
         { error: "lat and lon are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

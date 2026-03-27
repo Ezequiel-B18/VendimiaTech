@@ -37,13 +37,15 @@ function buildSubject(payload: NotifyBody): string {
 }
 
 function buildHtml(payload: NotifyBody): string {
-  const location = payload.bbox && payload.bbox.length === 4
-    ? `${payload.bbox[1].toFixed(4)}, ${payload.bbox[0].toFixed(4)} -> ${payload.bbox[3].toFixed(4)}, ${payload.bbox[2].toFixed(4)}`
-    : "Parcela seleccionada";
+  const location =
+    payload.bbox && payload.bbox.length === 4
+      ? `${payload.bbox[1].toFixed(4)}, ${payload.bbox[0].toFixed(4)} -> ${payload.bbox[3].toFixed(4)}, ${payload.bbox[2].toFixed(4)}`
+      : "Parcela seleccionada";
 
-  const frostBlock = payload.frostRisk && payload.frostAlert
-    ? `<li><strong>Helada:</strong> ${payload.frostAlert.minTemp}C esperados para ${payload.frostAlert.date} (en ${payload.frostAlert.hoursUntil}hs)</li>`
-    : "";
+  const frostBlock =
+    payload.frostRisk && payload.frostAlert
+      ? `<li><strong>Helada:</strong> ${payload.frostAlert.minTemp}C esperados para ${payload.frostAlert.date} (en ${payload.frostAlert.hoursUntil}hs)</li>`
+      : "";
 
   const fungalBlock = payload.fungalRisk
     ? "<li><strong>Riesgo fungico:</strong> Lluvia reciente mayor a 2mm en los ultimos 3 dias.</li>"
@@ -53,13 +55,15 @@ function buildHtml(payload: NotifyBody): string {
     ? `<li><strong>Lluvia intensa:</strong> Dias con lluvia >=20mm: ${(payload.intenseRainDays ?? []).join(", ") || "pronostico activo"}.</li>`
     : "";
 
-  const hailBlock = payload.hailRisk && payload.hailAlert
-    ? `<li><strong>Riesgo probable de granizo:</strong> ${payload.hailAlert.date} (lluvia ${payload.hailAlert.precipitation}mm, viento ${payload.hailAlert.windSpeed} km/h).</li>`
-    : "";
+  const hailBlock =
+    payload.hailRisk && payload.hailAlert
+      ? `<li><strong>Riesgo probable de granizo:</strong> ${payload.hailAlert.date} (lluvia ${payload.hailAlert.precipitation}mm, viento ${payload.hailAlert.windSpeed} km/h).</li>`
+      : "";
 
-  const dropBlock = payload.tempDrops.length > 0
-    ? `<li><strong>Shock termico:</strong> ${payload.tempDrops.join(", ")}</li>`
-    : "";
+  const dropBlock =
+    payload.tempDrops.length > 0
+      ? `<li><strong>Shock termico:</strong> ${payload.tempDrops.join(", ")}</li>`
+      : "";
 
   const hasAnyAlert =
     payload.frostRisk ||
@@ -104,8 +108,11 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey || !from) {
       return NextResponse.json(
-        { error: "Faltan RESEND_API_KEY o ALERTS_FROM_EMAIL en variables de entorno" },
-        { status: 500 }
+        {
+          error:
+            "Faltan RESEND_API_KEY o ALERTS_FROM_EMAIL en variables de entorno",
+        },
+        { status: 500 },
       );
     }
 
@@ -131,7 +138,7 @@ export async function POST(req: NextRequest) {
     if (!resendRes.ok) {
       return NextResponse.json(
         { error: resendData?.message || "No se pudo enviar el email" },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
