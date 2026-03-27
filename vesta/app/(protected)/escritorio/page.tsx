@@ -33,7 +33,7 @@ export default function EscritorioPage() {
   };
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(() => {
       loadData();
     });
     return () => unsubscribe();

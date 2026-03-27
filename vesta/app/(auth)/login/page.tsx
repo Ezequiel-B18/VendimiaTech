@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/escritorio"); // Redirigir al inicio protegido
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError("Credenciales incorrectas o usuario no encontrado.");
     } finally {
