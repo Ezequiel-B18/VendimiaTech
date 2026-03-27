@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     // Si asumiéramos cualquier busqueda en Valle Uco como el demo "Monteviejo" para el hackathon:
     if (isMonteviejo) {
       return NextResponse.json({
-        imageBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=", // Minimal fallback o usarías de public
+        imageBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=", // Minimal fallback o usarías de public
         imageHash: "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e",
         indices: { ndvi: 0.65, ndre: 0.42, ndwi: 0.18, distribution: { veryLow: 0, low: 0, moderate: 40, high: 50, veryHigh: 10 }, totalVegetationPercent: 80 },
         weather: {

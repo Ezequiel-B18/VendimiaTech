@@ -22,7 +22,11 @@ export default function SatelliteMap({ imageBase64, bbox }: Props) {
   useEffect(() => {
     if (!mapRef.current || leafletMapRef.current) return;
 
+    let cancelled = false;
+
     import("leaflet").then((L) => {
+      if (cancelled || !mapRef.current || leafletMapRef.current) return;
+
       const [lonMin, latMin, lonMax, latMax] = bbox;
       const center: [number, number] = [
         (latMin + latMax) / 2,
@@ -37,7 +41,10 @@ export default function SatelliteMap({ imageBase64, bbox }: Props) {
         opacity: 0.6,
       }).addTo(map);
 
-      const imageUrl = `data:image/png;base64,${imageBase64}`;
+      // Support both raw base64 and full data URLs
+      const imageUrl = imageBase64.startsWith("data:")
+        ? imageBase64
+        : `data:image/png;base64,${imageBase64}`;
       const imageBounds: L.LatLngBoundsExpression = [
         [latMin, lonMin],
         [latMax, lonMax],
@@ -50,6 +57,7 @@ export default function SatelliteMap({ imageBase64, bbox }: Props) {
     });
 
     return () => {
+      cancelled = true;
       if (leafletMapRef.current) {
         (leafletMapRef.current as { remove: () => void }).remove();
         leafletMapRef.current = null;
