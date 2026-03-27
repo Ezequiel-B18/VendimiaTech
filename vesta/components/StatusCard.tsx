@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { GeminiAnalysis } from "@/lib/gemini";
+import { LeafIcon, AlertTriangleIcon, SirenIcon, CloudSunIcon, BoltIcon, CalendarIcon, CheckCircleIcon } from "@/components/icons";
 
 const STATE_CONFIG = {
   bueno: {
@@ -26,11 +28,11 @@ const STATE_CONFIG = {
   },
 };
 
-const URGENCY_LABELS: Record<string, string> = {
-  inmediata: "⚡ Inmediata",
-  esta_semana: "📅 Esta semana",
-  este_mes: "📆 Este mes",
-  sin_urgencia: "✅ Sin urgencia",
+const URGENCY_LABELS: Record<string, React.ReactNode> = {
+  inmediata: <span className="flex items-center gap-1"><BoltIcon className="w-3.5 h-3.5" /> Inmediata</span>,
+  esta_semana: <span className="flex items-center gap-1"><CalendarIcon className="w-3.5 h-3.5" /> Esta semana</span>,
+  este_mes: <span className="flex items-center gap-1"><CalendarIcon className="w-3.5 h-3.5" /> Este mes</span>,
+  sin_urgencia: <span className="flex items-center gap-1"><CheckCircleIcon className="w-3.5 h-3.5" /> Sin urgencia</span>,
 };
 
 interface Props {
@@ -38,7 +40,18 @@ interface Props {
   indices: { ndvi: number; ndre: number; ndwi: number };
 }
 
+function summarizeText(text: string, maxLength = 140): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+
+  const firstSentence = normalized.match(/^.+?[.!?](\s|$)/)?.[0]?.trim();
+  if (firstSentence && firstSentence.length <= maxLength) return firstSentence;
+
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
 export default function StatusCard({ analysis, indices }: Props) {
+  const [showFullText, setShowFullText] = useState(false);
   const cfg = STATE_CONFIG[analysis.estado_general] ?? STATE_CONFIG.regular;
   const hasClimateData = !!(
     analysis.alerta_climatica ||
@@ -46,18 +59,18 @@ export default function StatusCard({ analysis, indices }: Props) {
     (analysis.recomendaciones_climaticas && analysis.recomendaciones_climaticas.length > 0)
   );
 
+  const statusIcon = analysis.estado_general === "bueno"
+    ? <LeafIcon className="w-6 h-6 text-white" />
+    : analysis.estado_general === "regular"
+    ? <AlertTriangleIcon className="w-6 h-6 text-white" />
+    : <SirenIcon className="w-6 h-6 text-white" />;
+
   return (
     <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-5`}>
       {/* Main status */}
       <div className="flex items-center gap-4 mb-5">
         <div className={`w-16 h-16 rounded-full ${cfg.color} shadow-lg flex items-center justify-center`}>
-          <span className="text-2xl">
-            {analysis.estado_general === "bueno"
-              ? "🌿"
-              : analysis.estado_general === "regular"
-              ? "⚠️"
-              : "🚨"}
-          </span>
+          {statusIcon}
         </div>
         <div>
           <p className={`text-xl font-bold ${cfg.text}`}>{cfg.label}</p>
@@ -96,15 +109,26 @@ export default function StatusCard({ analysis, indices }: Props) {
       {hasClimateData && (
         <div className="mb-5 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
-            <span>🌦️</span> Análisis integrado clima + imagen
+            <CloudSunIcon className="w-4 h-4" /> Análisis integrado clima + imagen
           </p>
+          <button
+            type="button"
+            onClick={() => setShowFullText((prev) => !prev)}
+            className="mb-3 text-xs font-medium text-blue-700 hover:text-blue-900 underline underline-offset-2"
+          >
+            {showFullText ? "Ver resumen" : "Ver texto completo"}
+          </button>
 
           {analysis.alerta_climatica && (
             <div className="mb-2">
               <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
-                Alerta climática
+                Contexto climático
               </p>
-              <p className="text-sm text-blue-900">{analysis.alerta_climatica}</p>
+              <p className="text-sm text-blue-900">
+                {showFullText
+                  ? analysis.alerta_climatica
+                  : summarizeText(analysis.alerta_climatica)}
+              </p>
             </div>
           )}
 
@@ -113,7 +137,11 @@ export default function StatusCard({ analysis, indices }: Props) {
               <p className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1">
                 Correlación clima-imagen
               </p>
-              <p className="text-sm text-blue-900">{analysis.correlacion_clima_imagen}</p>
+              <p className="text-sm text-blue-900">
+                {showFullText
+                  ? analysis.correlacion_clima_imagen
+                  : summarizeText(analysis.correlacion_clima_imagen)}
+              </p>
             </div>
           )}
 
@@ -123,10 +151,13 @@ export default function StatusCard({ analysis, indices }: Props) {
                 Acciones recomendadas por clima
               </p>
               <ul className="space-y-1">
-                {analysis.recomendaciones_climaticas.map((rec, i) => (
+                {(showFullText
+                  ? analysis.recomendaciones_climaticas
+                  : analysis.recomendaciones_climaticas.slice(0, 2)
+                ).map((rec, i) => (
                   <li key={i} className="flex gap-2 text-sm text-blue-900">
                     <span className="text-blue-500 mt-0.5 shrink-0">→</span>
-                    <span>{rec}</span>
+                    <span>{showFullText ? rec : summarizeText(rec, 100)}</span>
                   </li>
                 ))}
               </ul>
@@ -181,7 +212,7 @@ export default function StatusCard({ analysis, indices }: Props) {
         </p>
         {analysis.observaciones && (
           <p className="text-xs text-gray-400 mt-1 italic">
-            {analysis.observaciones}
+            {showFullText ? analysis.observaciones : summarizeText(analysis.observaciones, 120)}
           </p>
         )}
       </div>

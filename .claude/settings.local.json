@@ -13,7 +13,10 @@
       "Bash(python3 -c \"import json,sys; abi=json.load\\(sys.stdin\\); [print\\(f[''''name'''']\\) for f in abi if f.get\\(''''type''''\\)==''''function'''']\")",
       "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(''''main:'''', p.get\\(''''main''''\\)\\); print\\(''''module:'''', p.get\\(''''module''''\\)\\); print\\(''''exports:'''', list\\(p.get\\(''''exports'''', {}\\).keys\\(\\)\\)[:5]\\)\")",
       "Bash(grep -E \"pragma solidity\" /c/Users/nahue/Downloads/VendimiaTech/vesta/contracts/*.sol)",
-      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)[''''version'''']\\)\")"
+      "Bash(python3 -c \"import json,sys; print\\(json.load\\(sys.stdin\\)[''''version'''']\\)\")",
+      "Bash(node -e \"const pkg = require\\(''./node_modules/xo-connect/package.json''\\); console.log\\(pkg.main, pkg.exports, pkg.types\\)\")",
+      "Bash(npm run:*)",
+      "Bash(node -e \"const {ethers}=require\\(''ethers''\\); const w=new ethers.Wallet\\(''8532ba1fa072423c48507b0e5e829618669cc8466650bdff34e504bb2f63997f''\\); console.log\\(w.address\\);\")"
     ]
   }
 }
