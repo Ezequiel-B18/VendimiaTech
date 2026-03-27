@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import WalletButton, { WalletState } from "@/components/WalletButton";
 
 // Load map only on client (Leaflet doesn't work on SSR)
 const MapSelector = dynamic(() => import("@/components/MapSelector"), {
@@ -25,6 +26,7 @@ const ZONES = [
 export default function HomePage() {
   const router = useRouter();
   const [selectedBbox, setSelectedBbox] = useState<[number, number, number, number] | null>(null);
+  const [wallet, setWallet] = useState<WalletState | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoneSearch, setZoneSearch] = useState("");
   const [filteredZones, setFilteredZones] = useState<typeof ZONES>([]);
@@ -63,9 +65,12 @@ export default function HomePage() {
           🛰️
         </div>
         <span className="font-bold text-xl tracking-tight">VESTA</span>
-        <span className="text-green-400 text-sm ml-1">
+        <span className="text-green-400 text-sm ml-1 hidden sm:inline">
           Vegetation Satellite Tracker Analytics
         </span>
+        <div className="ml-auto">
+          <WalletButton wallet={wallet} onConnect={setWallet} />
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-10">
