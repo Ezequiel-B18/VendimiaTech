@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { addParcel } from "@/services/firebaseDb";
 import { auth } from "@/lib/firebase";
+import { PinIcon, VestaLogo } from "@/components/icons";
+import Link from "next/link";
 
 // Load map only on client (Leaflet doesn't work on SSR)
 const MapSelector = dynamic(() => import("@/components/MapSelector"), {
@@ -72,8 +74,8 @@ export default function MapaPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(14,165,233,0.14),transparent_30%),linear-gradient(to_bottom,#052e16,#0a0f1d_45%,#020617)] text-white">
-      <header className="px-6 py-5 border-b border-white/10 backdrop-blur-sm bg-slate-950/30 sticky top-0 z-30">
+    <div className="min-h-screen bg-gradient-to-b from-[#062a1e] via-[#0a1e2e] to-[#0a0b1e] text-white">
+      <header className="px-6 py-5 border-b border-white/5 backdrop-blur-md bg-[#0a0b1e]/80 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -83,11 +85,11 @@ export default function MapaPage() {
             >
               ← <span className="hidden sm:inline">Volver</span>
             </button>
-            <div className="w-9 h-9 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl shadow-lg shadow-emerald-900/40 flex items-center justify-center text-lg">
-              🛰️
-            </div>
-            <span className="font-bold text-xl tracking-tight">VESTA</span>
-            <span className="hidden sm:inline text-green-400 text-sm ml-1">
+            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <VestaLogo className="w-6 h-7 text-emerald-400" />
+              <span className="font-bold text-xl tracking-tight text-white">VESTA</span>
+            </Link>
+            <span className="hidden sm:inline text-emerald-400/60 text-sm ml-2">
               Portal Productor
             </span>
           </div>
@@ -127,9 +129,10 @@ export default function MapaPage() {
                     setFilteredZones([]);
                     setSelectedBbox(zone.bbox);
                   }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-sm text-gray-300 transition-colors"
+                  className="w-full text-left px-4 py-2.5 hover:bg-white/10 text-sm text-gray-300 transition-colors flex items-center gap-2"
                 >
-                  📍 {zone.label}
+                  <PinIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                  {zone.label}
                 </button>
               ))}
             </div>
@@ -144,32 +147,44 @@ export default function MapaPage() {
           />
 
           {selectedBbox && (
-            <div className="mt-6 border-t border-white/10 pt-6">
-              <h3 className="text-sm font-semibold mb-3">Opciones de Lote</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  onClick={handleAnalyze}
-                  disabled={loading || saving}
-                  className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 border border-emerald-500/20 text-emerald-300 font-semibold py-3 px-6 rounded-xl transition-all text-sm shadow-[0_0_15px_rgba(16,185,129,0.1)] flex justify-center items-center gap-2"
-                >
-                  {loading ? "Analizando..." : "Analizar (One-off) →"}
-                </button>
-  
-                <div className="flex bg-black/40 border border-emerald-500/30 rounded-xl overflow-hidden focus-within:ring-1 focus-within:ring-emerald-400">
-                   <input 
-                     type="text"
-                     value={parcelName}
-                     onChange={e => setParcelName(e.target.value)}
-                     placeholder="Nombre. Ej: Lote 4"
-                     className="w-full bg-transparent px-3 py-2 text-sm text-white focus:outline-none"
-                   />
-                   <button 
-                     onClick={handleSaveParcel}
-                     disabled={saving || loading || !parcelName.trim()}
-                     className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800/50 text-white font-bold px-4 text-sm transition-colors whitespace-nowrap"
-                   >
-                     {saving ? "..." : "Guardar"}
-                   </button>
+            <div className="mt-6 border-t border-white/10 pt-6 space-y-3">
+              {/* Analyze now */}
+              <button
+                onClick={handleAnalyze}
+                disabled={loading || saving}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900 text-white font-bold py-3.5 px-6 rounded-xl transition-all text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Iniciando análisis...
+                  </>
+                ) : (
+                  <>🛰️ Analizar parcela</>
+                )}
+              </button>
+
+              {/* Save as named parcel */}
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <p className="text-xs text-gray-400 mb-2">Guardar como lote permanente</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={parcelName}
+                    onChange={(e) => setParcelName(e.target.value)}
+                    placeholder="Nombre del lote · ej: Lote 4 Norte"
+                    className="flex-1 bg-white/10 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                  />
+                  <button
+                    onClick={handleSaveParcel}
+                    disabled={saving || loading || !parcelName.trim()}
+                    className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800/60 disabled:text-gray-600 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
+                  >
+                    {saving ? "Guardando..." : "Guardar"}
+                  </button>
                 </div>
               </div>
             </div>

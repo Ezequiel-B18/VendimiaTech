@@ -6,6 +6,8 @@ import QRCode from "qrcode";
 import { auth } from "@/lib/firebase";
 import { getParcels, getWines, getCertificates, linkWineToCertificate, Parcel, Wine, Certificate, updateWineImageUrl } from "@/services/firebaseDb";
 import AddWineModal from "../../../components/AddWineModal";
+import { MapIcon, WineIcon, VestaLogo } from "@/components/icons";
+import Link from "next/link";
 
 async function uploadToCloudinary(file: File): Promise<string> {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -146,15 +148,15 @@ export default function EscritorioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(14,165,233,0.14),transparent_30%),linear-gradient(to_bottom,#052e16,#0a0f1d_45%,#020617)] text-white">
-      <header className="px-6 py-5 border-b border-white/10 backdrop-blur-sm bg-slate-950/30 sticky top-0 z-30">
+    <div className="min-h-screen bg-gradient-to-b from-[#062a1e] via-[#0a1e2e] to-[#0a0b1e] text-white">
+      <header className="px-6 py-5 border-b border-white/5 backdrop-blur-md bg-[#0a0b1e]/80 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl shadow-lg shadow-emerald-900/40 flex items-center justify-center text-lg">
-              🛰️
-            </div>
-            <span className="font-bold text-xl tracking-tight">VESTA</span>
-            <span className="hidden sm:inline text-emerald-400 text-sm ml-1">
+            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <VestaLogo className="w-6 h-7 text-emerald-400" />
+              <span className="font-bold text-xl tracking-tight text-white">VESTA</span>
+            </Link>
+            <span className="hidden sm:inline text-emerald-400/60 text-sm ml-2">
               Mi Escritorio
             </span>
           </div>
@@ -193,7 +195,7 @@ export default function EscritorioPage() {
              </div>
           ) : parcels.length === 0 ? (
              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-10 text-center backdrop-blur-sm">
-                <span className="text-4xl">🗺️</span>
+                <MapIcon className="w-10 h-10 text-slate-500 mx-auto" />
                 <p className="text-emerald-100/70 mt-4 mb-4">Aún no has trazado el polígono de tu cosecha.</p>
                 <button onClick={() => router.push("/mapa")} className="text-emerald-400 font-medium hover:text-emerald-300">Ir al mapa satelital →</button>
              </div>
@@ -239,7 +241,7 @@ export default function EscritorioPage() {
              <div className="h-32" />
           ) : wines.length === 0 ? (
              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-10 text-center backdrop-blur-sm">
-                <span className="text-4xl text-slate-600">🍷</span>
+                <WineIcon className="w-10 h-10 text-slate-600 mx-auto" />
                 <p className="text-emerald-100/70 mt-4 mb-4">No has registrado las etiquetas comercializables del lote.</p>
              </div>
           ) : (

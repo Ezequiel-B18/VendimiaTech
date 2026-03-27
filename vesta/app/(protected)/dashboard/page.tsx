@@ -11,6 +11,8 @@ import { auth } from "@/lib/firebase";
 import { saveCertificate, saveAnalysis, getAnalysis } from "@/services/firebaseDb";
 import type { WeatherResult } from "@/lib/weather";
 import type { PixelDistribution } from "@/lib/sentinel";
+import { AlertTriangleIcon, ThermometerIcon, MushroomIcon, BoltIcon, TrendUpIcon, ArrowRightIcon, TrendDownIcon, CalendarIcon, LockIcon, VestaLogo } from "@/components/icons";
+import Link from "next/link";
 
 const SatelliteMap = dynamic(() => import("@/components/SatelliteMap"), {
   ssr: false,
@@ -280,9 +282,9 @@ function DashboardContent() {
 
   // Temporal analysis evolution config
   const evolutionConfig = temporalResult?.evolution ? {
-    mejora: { icon: "📈", color: "text-green-600", bg: "bg-green-50", border: "border-green-200", label: "Mejora detectada" },
-    estable: { icon: "➡️", color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", label: "Sin cambios significativos" },
-    deterioro: { icon: "📉", color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Deterioro detectado" },
+    mejora: { icon: <TrendUpIcon className="w-5 h-5" />, color: "text-green-600", bg: "bg-green-50", border: "border-green-200", label: "Mejora detectada" },
+    estable: { icon: <ArrowRightIcon className="w-5 h-5" />, color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", label: "Sin cambios significativos" },
+    deterioro: { icon: <TrendDownIcon className="w-5 h-5" />, color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Deterioro detectado" },
   }[temporalResult.evolution.cambio_general] : null;
 
   return (
@@ -298,7 +300,7 @@ function DashboardContent() {
       {/* Header */}
       <header className="bg-gray-950 border-b border-white/10 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button
+           <button
             onClick={() => router.push("/escritorio")}
             className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm border border-white/5"
           >
@@ -427,7 +429,7 @@ function DashboardContent() {
           {temporalStep === "done" && temporalResult && evolutionConfig && (
             <div className={`rounded-xl border ${evolutionConfig.border} ${evolutionConfig.bg} p-4`}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xl">{evolutionConfig.icon}</span>
+                <span className={evolutionConfig.color}>{evolutionConfig.icon}</span>
                 <p className={`text-sm font-bold ${evolutionConfig.color}`}>{evolutionConfig.label}</p>
               </div>
 
@@ -649,9 +651,33 @@ function DashboardContent() {
                   <span className="text-xl">✅</span>
                   <span>Todo tranquilo por ahora</span>
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* ─── EVENTOS RECIENTES (past context) ─── */}
+                {hasPastEvents && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      📋 Eventos recientes (contexto)
+                    </p>
+                    <p className="text-xs text-gray-400 mb-2">
+                      Eventos climáticos pasados que pueden explicar el estado actual del viñedo.
+                    </p>
+                    {weather.fungalRisk && (
+                      <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-orange-50 text-orange-600">
+                        <span>🍄</span>
+                        <span>Lluvia reciente (&gt;2mm) — monitorear riesgo fúngico</span>
+                      </div>
+                    )}
+                    {pastTempDrops.map((date) => (
+                      <div key={date} className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 text-gray-500">
+                        <span>⚡</span>
+                        <span>Shock térmico registrado el {date}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>

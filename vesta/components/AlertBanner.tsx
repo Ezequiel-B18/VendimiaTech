@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertTriangleIcon } from "@/components/icons";
+
 interface Props {
   minTemp: number;
   hoursUntil: number;
@@ -10,7 +12,7 @@ export default function AlertBanner({ minTemp, hoursUntil, date }: Props) {
   return (
     <div className="w-full bg-red-600 text-white px-4 py-3 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
-        <span className="text-2xl">⚠️</span>
+        <AlertTriangleIcon className="w-6 h-6 shrink-0" />
         <div>
           <p className="font-bold text-sm sm:text-base">
             Alerta: temperatura proyectada {minTemp}°C esta noche. Riesgo en lotes bajos.
