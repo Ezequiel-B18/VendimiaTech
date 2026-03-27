@@ -62,11 +62,11 @@ function BottlePassportStatic({ tokenId }: { tokenId: string }) {
 
       <div className="max-w-md mx-auto px-4 space-y-4 mt-2">
 
-        {/* SELLO BODEGA CERTIFICADA */}
+        {/* SELLO BODEGA CERTIFICADA ON-CHAIN */}
         <div className="bg-green-900/40 border border-green-700/50 rounded-2xl p-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
             <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-base">✓</div>
-            <p className="text-lg font-bold text-green-300">Bodega Certificada</p>
+            <p className="text-lg font-bold text-green-300">Bodega Certificada on-chain</p>
           </div>
           <p className="text-sm text-green-200">
             Esta partida proviene de un viñedo verificado satelitalmente por VESTA.
@@ -74,6 +74,13 @@ function BottlePassportStatic({ tokenId }: { tokenId: string }) {
           </p>
           <div className="mt-3 bg-green-900/40 rounded-lg px-3 py-2 text-xs text-green-300 font-mono">
             Certificado VESTA · Satellite + IA + Blockchain
+          </div>
+          {/* Detalles de red compactos */}
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-white/50 px-1">
+            <span>Red: BSC Testnet</span>
+            {tokenIdBSC && <span>· Token #{tokenIdBSC}</span>}
+            {txHash && <span>· {formatHash(txHash)}</span>}
+            {!tokenIdBSC && !txHash && <span>· Partida: {tokenId.slice(0, 20)}</span>}
           </div>
         </div>
 
@@ -153,49 +160,6 @@ function BottlePassportStatic({ tokenId }: { tokenId: string }) {
               </div>
             ))}
           </div>
-        </div>
-
-        {/* CERTIFICADO BLOCKCHAIN DE LA BODEGA */}
-        <div className="bg-gray-900 rounded-2xl p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-lg shrink-0">✓</div>
-            <div>
-              <p className="text-sm font-semibold text-green-400">Bodega verificada on-chain</p>
-              <p className="text-xs text-gray-500">BNB Chain (BSC Testnet)</p>
-            </div>
-          </div>
-          <div className="bg-gray-800 rounded-xl p-3 space-y-1.5 text-xs">
-            {tokenIdBSC && (
-              <div className="flex justify-between">
-                <span className="text-gray-400">Token ID bodega</span>
-                <span className="text-white font-mono">#{tokenIdBSC}</span>
-              </div>
-            )}
-            {txHash && (
-              <div className="flex justify-between">
-                <span className="text-gray-400">Tx Hash</span>
-                <span className="text-gray-300 font-mono">{formatHash(txHash)}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-gray-400">Red</span>
-              <span className="text-gray-300">BSC Testnet</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Partida</span>
-              <span className="text-gray-300 font-mono text-[10px] truncate max-w-[160px]">{tokenId}</span>
-            </div>
-          </div>
-          {tokenIdBSC && (
-            <a
-              href={`https://testnet.bscscan.com/token/${process.env.NEXT_PUBLIC_CONTRACT_BSC}?a=${tokenIdBSC}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-center text-xs text-yellow-400 hover:text-yellow-300 mt-3"
-            >
-              Ver contrato de la bodega en BSCScan →
-            </a>
-          )}
         </div>
 
         {/* CTA */}
@@ -396,4 +360,3 @@ export default function BottlePassportPage() {
     </Suspense>
   );
 }
-
