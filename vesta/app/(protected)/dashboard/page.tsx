@@ -8,8 +8,9 @@ import AlertBanner from "@/components/AlertBanner";
 import StatusCard from "@/components/StatusCard";
 import WeatherChart from "@/components/WeatherChart";
 import WalletButton, { WalletState } from "@/components/WalletButton";
-import type { GeminiAnalysis } from "@/lib/gemini";
+import type { GeminiAnalysis, GeminiTemporalAnalysis } from "@/lib/gemini";
 import type { WeatherResult } from "@/lib/weather";
+import type { PixelDistribution } from "@/lib/sentinel";
 
 const SatelliteMap = dynamic(() => import("@/components/SatelliteMap"), {
   ssr: false,
@@ -23,13 +24,35 @@ const SatelliteMap = dynamic(() => import("@/components/SatelliteMap"), {
 interface AnalysisResult {
   imageBase64: string;
   imageHash: string;
-  indices: { ndvi: number; ndre: number; ndwi: number };
+  indices: {
+    ndvi: number;
+    ndre: number;
+    ndwi: number;
+    distribution?: PixelDistribution;
+    totalVegetationPercent?: number;
+  };
   geminiAnalysis: GeminiAnalysis;
+  weather: WeatherResult;
   timestamp: string;
   bbox: number[];
 }
 
-type Step = "idle" | "satellite" | "weather" | "done" | "error";
+interface TemporalResult {
+  current: {
+    imageBase64: string;
+    imageHash: string;
+    indices: { ndvi: number; ndre: number; ndwi: number };
+  };
+  comparison: {
+    imageBase64: string;
+    imageHash: string;
+    indices: { ndvi: number; ndre: number; ndwi: number };
+    dateRange: { from: string; to: string };
+  };
+  evolution: GeminiTemporalAnalysis;
+}
+
+type Step = "idle" | "analyzing" | "done" | "error";
 
 interface CertifyResult {
   txHash: string;
@@ -38,6 +61,7 @@ interface CertifyResult {
 }
 
 type CertifyStep = "idle" | "minting" | "success" | "error";
+type TemporalStep = "idle" | "loading" | "done" | "error";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -67,40 +91,32 @@ function DashboardContent() {
   const [partidaUrl, setPartidaUrl] = useState<string | null>(null);
   const qrImgRef = useRef<HTMLImageElement>(null);
 
+  // Temporal analysis state
+  const [temporalStep, setTemporalStep] = useState<TemporalStep>("idle");
+  const [temporalResult, setTemporalResult] = useState<TemporalResult | null>(null);
+  const [temporalError, setTemporalError] = useState<string | null>(null);
+  const [comparisonDate, setComparisonDate] = useState<string>("");
+
   useEffect(() => {
     if (!bbox) return;
 
     const run = async () => {
       try {
-        setStep("satellite");
+        setStep("analyzing");
 
-        const analyzeRes = await fetch("/api/analyze", {
+        // Single API call — satellite + weather + Gemini (combined)
+        const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ bbox }),
         });
-        if (!analyzeRes.ok) {
-          const err = await analyzeRes.json();
-          throw new Error(err.error || "Error en análisis satelital");
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Error en análisis");
         }
-        const analysisData: AnalysisResult = await analyzeRes.json();
-        setAnalysis(analysisData);
-
-        setStep("weather");
-
-        const lat = (bbox[1] + bbox[3]) / 2;
-        const lon = (bbox[0] + bbox[2]) / 2;
-        const weatherRes = await fetch("/api/weather", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lat, lon }),
-        });
-        if (!weatherRes.ok) {
-          const err = await weatherRes.json();
-          throw new Error(err.error || "Error en datos climáticos");
-        }
-        const weatherData: WeatherResult = await weatherRes.json();
-        setWeather(weatherData);
+        const data: AnalysisResult = await res.json();
+        setAnalysis(data);
+        setWeather(data.weather);
 
         setStep("done");
       } catch (err) {
@@ -148,6 +164,38 @@ function DashboardContent() {
     a.href = qrDataUrl;
     a.download = `qr-partida-${nombreVino || "vino"}.png`;
     a.click();
+  };
+  const handleTemporalAnalysis = async () => {
+    if (!bbox || !comparisonDate) return;
+    setTemporalStep("loading");
+    setTemporalError(null);
+    try {
+      // Use comparison date as a 15-day window ending at that date
+      const dateTo = comparisonDate;
+      const from = new Date(comparisonDate);
+      from.setDate(from.getDate() - 15);
+      const dateFrom = from.toISOString().split("T")[0];
+
+      const res = await fetch("/api/analyze/temporal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bbox,
+          comparisonDateFrom: dateFrom,
+          comparisonDateTo: dateTo,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Error en análisis temporal");
+      }
+      const data: TemporalResult = await res.json();
+      setTemporalResult(data);
+      setTemporalStep("done");
+    } catch (err) {
+      setTemporalError(err instanceof Error ? err.message : "Error desconocido");
+      setTemporalStep("error");
+    }
   };
 
   const handleCertify = async () => {
@@ -213,13 +261,8 @@ function DashboardContent() {
     );
   }
 
-  if (step !== "done" && step !== "error") {
-    const steps = [
-      { key: "satellite", label: "Descargando imagen Sentinel-2..." },
-      { key: "weather", label: "Obteniendo datos climáticos..." },
-    ];
-    const currentIdx = steps.findIndex((s) => s.key === step);
-
+  // Loading state
+  if (step === "analyzing") {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center max-w-sm">
@@ -230,23 +273,7 @@ function DashboardContent() {
             </svg>
           </div>
           <p className="text-white font-semibold mb-2">Analizando tu parcela</p>
-          <div className="space-y-2 mt-4">
-            {steps.map((s, i) => (
-              <div
-                key={s.key}
-                className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
-                  i < currentIdx
-                    ? "text-green-400 bg-green-900/20"
-                    : i === currentIdx
-                    ? "text-white bg-white/10"
-                    : "text-gray-600"
-                }`}
-              >
-                {i < currentIdx ? "✓" : i === currentIdx ? "⟳" : "○"}
-                <span>{s.label}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-gray-400 text-sm">Descargando imagen satelital, datos climáticos y ejecutando análisis IA...</p>
         </div>
       </div>
     );
@@ -270,6 +297,13 @@ function DashboardContent() {
   }
 
   const frostAlert = weather?.frostAlert;
+
+  // Temporal analysis evolution config
+  const evolutionConfig = temporalResult?.evolution ? {
+    mejora: { icon: "📈", color: "text-green-600", bg: "bg-green-50", border: "border-green-200", label: "Mejora detectada" },
+    estable: { icon: "➡️", color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200", label: "Sin cambios significativos" },
+    deterioro: { icon: "📉", color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Deterioro detectado" },
+  }[temporalResult.evolution.cambio_general] : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -311,7 +345,48 @@ function DashboardContent() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
             Imagen satelital
           </h2>
-          {analysis && <SatelliteMap imageBase64={analysis.imageBase64} bbox={bbox} />}
+          {analysis && (
+            <SatelliteMap
+              imageBase64={analysis.imageBase64}
+              bbox={bbox}
+            />
+          )}
+
+          {/* Pixel distribution */}
+          {analysis?.indices?.distribution && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                Distribución de cobertura
+              </p>
+              <div className="space-y-2">
+                {[
+                  { key: "green_intense", label: "Vegetación sana", color: "bg-green-600", value: analysis.indices.distribution.green_intense },
+                  { key: "green_mid", label: "Vegetación media", color: "bg-green-400", value: analysis.indices.distribution.green_mid },
+                  { key: "green_light", label: "Vegetación baja", color: "bg-green-300", value: analysis.indices.distribution.green_light },
+                  { key: "yellow", label: "Vigor bajo", color: "bg-yellow-400", value: analysis.indices.distribution.yellow },
+                  { key: "blue", label: "Humedad alta", color: "bg-blue-500", value: analysis.indices.distribution.blue },
+                  { key: "red", label: "Sin vegetación", color: "bg-red-500", value: analysis.indices.distribution.red },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-center gap-2">
+                     <div className={`w-3 h-3 rounded-sm ${item.color} shrink-0`} />
+                     <span className="text-xs text-gray-600 flex-1">{item.label}</span>
+                     <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                       <div
+                         className={`h-full ${item.color} rounded-full transition-all`}
+                         style={{ width: `${Math.min(item.value, 100)}%` }}
+                       />
+                     </div>
+                     <span className="text-xs text-gray-500 w-8 text-right">{item.value}%</span>
+                  </div>
+                ))}
+              </div>
+              {analysis.indices.totalVegetationPercent !== undefined && (
+                <p className="text-xs text-gray-400 mt-3 pt-2 border-t border-gray-100">
+                  Total vegetación: <strong className="text-green-600">{analysis.indices.totalVegetationPercent}%</strong>
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* CENTER: Status + QR + Certify */}
@@ -400,6 +475,130 @@ function DashboardContent() {
           </div>
 
           {/* ─── CERTIFICAR ON-CHAIN ─── */}
+          {/* Temporal comparison trigger */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              📅 Comparar con fecha anterior
+            </p>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="date"
+                value={comparisonDate}
+                onChange={(e) => setComparisonDate(e.target.value)}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                max={new Date().toISOString().split("T")[0]}
+              />
+              <button
+                onClick={handleTemporalAnalysis}
+                disabled={!comparisonDate || temporalStep === "loading"}
+                className="bg-indigo-500 hover:bg-indigo-400 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                {temporalStep === "loading" ? "Analizando..." : "Comparar"}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              Seleccioná una fecha para comparar la evolución del viñedo con la imagen actual.
+            </p>
+          </div>
+
+          {/* Temporal result */}
+          {temporalStep === "done" && temporalResult && evolutionConfig && (
+            <div className={`rounded-xl border ${evolutionConfig.border} ${evolutionConfig.bg} p-4`}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">{evolutionConfig.icon}</span>
+                <p className={`text-sm font-bold ${evolutionConfig.color}`}>{evolutionConfig.label}</p>
+              </div>
+
+              {/* Before/after mini images */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-500 mb-1">
+                    Anterior ({temporalResult.comparison.dateRange.from} – {temporalResult.comparison.dateRange.to})
+                  </p>
+                  <img
+                    src={`data:image/png;base64,${temporalResult.comparison.imageBase64}`}
+                    alt="Imagen anterior"
+                    className="rounded-lg border border-gray-200 w-full aspect-square object-cover"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Vigor: {(temporalResult.comparison.indices.ndvi * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-500 mb-1">Actual</p>
+                  <img
+                    src={`data:image/png;base64,${temporalResult.current.imageBase64}`}
+                    alt="Imagen actual"
+                    className="rounded-lg border border-gray-200 w-full aspect-square object-cover"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Vigor: {(temporalResult.current.indices.ndvi * 100).toFixed(0)}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Evolution details */}
+              <div className="space-y-2 text-sm">
+                <p className="text-gray-700">
+                  <strong>Cambio estimado:</strong> {temporalResult.evolution.porcentaje_cambio_ndvi > 0 ? "+" : ""}
+                  {temporalResult.evolution.porcentaje_cambio_ndvi}% en vigor
+                </p>
+                <p className="text-gray-700">
+                  <strong>Tendencia:</strong> {temporalResult.evolution.tendencia}
+                </p>
+                <p className="text-gray-700">
+                  <strong>Causa probable:</strong> {temporalResult.evolution.posible_causa}
+                </p>
+
+                {temporalResult.evolution.zonas_mejoradas.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-green-700">Zonas mejoradas:</p>
+                    <ul className="text-xs text-gray-600 ml-3">
+                      {temporalResult.evolution.zonas_mejoradas.map((z, i) => (
+                        <li key={i}>· {z}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {temporalResult.evolution.zonas_deterioradas.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-red-700">Zonas deterioradas:</p>
+                    <ul className="text-xs text-gray-600 ml-3">
+                      {temporalResult.evolution.zonas_deterioradas.map((z, i) => (
+                        <li key={i}>· {z}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {temporalResult.evolution.recomendaciones.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-700">Recomendaciones:</p>
+                    <ul className="text-xs text-gray-600 ml-3">
+                      {temporalResult.evolution.recomendaciones.map((r, i) => (
+                        <li key={i}>→ {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {temporalStep === "error" && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm text-red-600">{temporalError}</p>
+              <button
+                onClick={() => setTemporalStep("idle")}
+                className="text-xs text-gray-500 hover:text-gray-700 mt-2"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
+          {/* Certify — chain selector */}
           <div className="bg-gray-900 rounded-xl border border-white/10 p-4">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
               Certificar on-chain

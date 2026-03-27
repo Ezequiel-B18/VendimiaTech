@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchSentinelImage, estimateIndicesFromColors } from "@/lib/sentinel";
-import { analyzeWithGemini } from "@/lib/gemini";
+import { fetchSentinelImage, calculateIndicesFromPixels } from "@/lib/sentinel";
+import { analyzeWithGemini, extractWeatherContext } from "@/lib/gemini";
+import { fetchWeather } from "@/lib/weather";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +23,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         imageBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=", // Minimal fallback o usarías de public
         imageHash: "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e",
-        indices: { ndvi: 0.65, ndre: 0.42, ndwi: 0.18 },
+        indices: { ndvi: 0.65, ndre: 0.42, ndwi: 0.18, distribution: { veryLow: 0, low: 0, moderate: 40, high: 50, veryHigh: 10 }, totalVegetationPercent: 80 },
+        weather: {
+          summary: { tempDay: 25, totalPrecip: 0, frostDays: 0, waterBalance: -5 },
+          daily: [],
+          frostAlert: null,
+          tempDrops: [],
+          frostRisk: false,
+          fungalRisk: false
+        },
         geminiAnalysis: {
           estado_general: "regular",
           cobertura_vegetal: "media",
@@ -39,20 +48,39 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 1. Fetch Sentinel-2 image
-    const { imageBase64, imageHash } = await fetchSentinelImage(bbox);
+    // Calculate center of bbox for weather query
+    const lat = (bbox[1] + bbox[3]) / 2;
+    const lon = (bbox[0] + bbox[2]) / 2;
 
-    // 2. Estimate indices (simplified heuristic)
-    const indices = estimateIndicesFromColors();
+    // 1. Fetch satellite image AND weather data in parallel
+    const [sentinelResult, weatherResult] = await Promise.all([
+      fetchSentinelImage(bbox),
+      fetchWeather(lat, lon),
+    ]);
 
-    // 3. Analyze with Gemini
-    const geminiAnalysis = await analyzeWithGemini(imageBase64);
+    const { imageBase64, imageHash, imageBuffer } = sentinelResult;
+
+    // 2. Calculate real indices from pixel data
+    const indices = calculateIndicesFromPixels(imageBuffer);
+
+    // 3. Extract weather context for Gemini
+    const weatherContext = extractWeatherContext(weatherResult);
+
+    // 4. Analyze with Gemini (enriched with climate data)
+    const geminiAnalysis = await analyzeWithGemini(imageBase64, weatherContext);
 
     return NextResponse.json({
       imageBase64,
       imageHash,
-      indices,
+      indices: {
+        ndvi: indices.ndvi,
+        ndre: indices.ndre,
+        ndwi: indices.ndwi,
+        distribution: indices.distribution,
+        totalVegetationPercent: indices.totalVegetationPercent,
+      },
       geminiAnalysis,
+      weather: weatherResult,
       timestamp: new Date().toISOString(),
       bbox,
     });
