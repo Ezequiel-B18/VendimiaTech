@@ -15,7 +15,7 @@ cp .env.example .env.local
 Completar en `.env.local`:
 
 | Variable | Dónde obtenerla |
-|----------|-----------------|
+|----------|-----------------'|
 | `COPERNICUS_CLIENT_ID` / `SECRET` | dataspace.copernicus.eu → User Settings → OAuth |
 | `GEMINI_API_KEY` | aistudio.google.com/apikey |
 | `HEDERA_ACCOUNT_ID` / `PRIVATE_KEY` | portal.hedera.com |

@@ -160,6 +160,82 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* ── Pricing ── */}
+        <section id="pricing" className="border-t border-white/5 py-20">
+          <div className="max-w-6xl mx-auto px-6">
+            <div className="max-w-3xl mb-10">
+              <h2 className="text-3xl font-bold mb-4">Planes VESTA</h2>
+              <p className="text-gray-400 leading-relaxed">
+                Elegí el plan según tu escala productiva. El acceso se activa por contacto y validación de hectáreas.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <article className="rounded-2xl border border-violet-400/20 bg-gradient-to-b from-violet-500/10 via-violet-500/5 to-transparent p-6">
+                <div className="mb-6">
+                  <p className="text-sm text-violet-200/90 font-medium">Productor Chico</p>
+                  <p className="text-sm text-gray-300 mt-1">20 a 50 hectareas</p>
+                </div>
+
+                <div className="mb-5">
+                  <p className="text-lg text-gray-400 line-through">USD 50/mes</p>
+                  <p className="text-4xl font-extrabold tracking-tight text-violet-100">USD 24.99<span className="text-base text-violet-200/80 font-semibold">/mes</span></p>
+                </div>
+
+                <div className="rounded-lg border border-violet-300/25 bg-violet-400/10 px-3 py-2.5 mb-5">
+                  <p className="text-xs font-semibold text-violet-100">Oferta primeros clientes · 3 meses</p>
+                </div>
+              </article>
+
+              <article className="rounded-2xl border border-violet-300/30 bg-gradient-to-b from-violet-400/20 via-violet-500/10 to-transparent p-6 shadow-[0_0_0_1px_rgba(167,139,250,0.08)]">
+                <div className="mb-6">
+                  <p className="text-sm text-violet-100 font-medium">Productor Mediano</p>
+                  <p className="text-sm text-gray-300 mt-1">50 a 80 hectareas</p>
+                </div>
+
+                <div className="mb-5">
+                  <p className="text-lg text-gray-400 line-through">USD 100/mes</p>
+                  <p className="text-4xl font-extrabold tracking-tight text-white">USD 49.99<span className="text-base text-violet-200/80 font-semibold">/mes</span></p>
+                </div>
+
+                <div className="rounded-lg border border-violet-200/30 bg-violet-300/15 px-3 py-2.5 mb-5">
+                  <p className="text-xs font-semibold text-violet-50">Oferta primeros clientes · 3 meses</p>
+                </div>
+              </article>
+
+              <article className="rounded-2xl border border-violet-400/20 bg-gradient-to-b from-violet-500/10 via-violet-500/5 to-transparent p-6">
+                <div className="mb-6">
+                  <p className="text-sm text-violet-200/90 font-medium">Bodega Exportadora</p>
+                  <p className="text-sm text-gray-300 mt-1">100 a 500 hectareas</p>
+                </div>
+
+                <div className="mb-5">
+                  <p className="text-lg text-gray-400 line-through">USD 250/mes</p>
+                  <p className="text-4xl font-extrabold tracking-tight text-violet-100">USD 124.99<span className="text-base text-violet-200/80 font-semibold">/mes</span></p>
+                </div>
+
+                <div className="rounded-lg border border-violet-300/25 bg-violet-400/10 px-3 py-2.5 mb-5">
+                  <p className="text-xs font-semibold text-violet-100">Oferta primeros clientes · 3 meses</p>
+                </div>
+              </article>
+            </div>
+
+            <div className="mt-8 flex justify-center">
+              <div className="text-center">
+                <p className="text-sm text-gray-300 mb-3">
+                  Contactanos para acceder a este plan y validar que tu operación esté dentro del rango de hectáreas.
+                </p>
+                <button
+                  onClick={() => router.push("/login")}
+                  className="px-6 py-3 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
+                >
+                  Contactar para validar hectáreas
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── Verificar botella ── */}
         <section id="tracking-vino" className="border-t border-white/5 py-20">
           <div className="max-w-6xl mx-auto px-6">
